@@ -1,0 +1,26 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+all:
+# ============================================================================ #
+  hosts:
+    master:
+      ansible_ssh_host: 192.168.122.144
+    worker1:
+      ansible_ssh_host: 192.168.122.88
+    # worker2:
+    #   ansible_ssh_host: 192.168.122.88
+# ============================================================================ #
+  vars:
+    ansible_connection: ssh
+    ansible_host_key_checking: False
+
+    # ansible_ssh_port: 22
+    ansible_ssh_user: root
+    # ansible_become_method: sudo
+    # ansible_become_method: su
+    ansible_become_password: root123
+    # Requires: dnf install -y sshpass
+    ansible_ssh_pass: root123
+    # ansible_python_interpreter: /usr/bin/python3
+# ============================================================================ #

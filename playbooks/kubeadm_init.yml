@@ -1,0 +1,156 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+- hosts: all
+  become: true
+  vars:
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
+    MASTER_IP: "{{ hostvars['master']['ansible_default_ipv4']['address'] }}"
+  tasks:
+  - ansible.builtin.import_tasks: ../tasks/k8s_prerequisites.yml
+# ============================================================================ #
+  - name: Init first cluster member
+    # Run this only on the first node in the inventory
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    changed_when: false
+    register: join_commands
+    shell: |-
+      kubeadm reset -f &&
+      rm -rf ${HOME}/.kube/config &&
+      kubeadm init --v=5 \
+        --config=/etc/kubernetes/kubeadm_config.yaml \
+        --upload-certs \
+        &&
+      true
+  # - debug: var=join_commands
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - debug: var=join_commands
+  - name: Retrieve join commands
+    set_fact:
+      join_command_control_plane:
+        "{{
+          ' '.join(join_commands.stdout_lines[-12:-8]).
+          replace('\\ ', '').
+          replace('\t', '').
+          strip()
+        }}"
+      join_command_worker:
+        "{{
+          ' '.join(join_commands.stdout_lines[-2:]).
+          replace('\\ ', '').
+          replace('\t', '').
+          strip()
+        }}"
+    when:
+    - join_commands is defined
+    - join_commands.stdout_lines is defined
+    - join_commands.stdout_lines[-1] != ''
+    delegate_to: "{{ item }}"
+    with_items: "{{ ansible_play_batch }}"
+    run_once: yes
+    # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - debug:
+      msg:
+        join_command_control_plane: "{{ join_command_control_plane }}"
+        join_command_worker: "{{ join_command_worker }}"
+    when:
+    - join_command_control_plane is defined
+    - join_command_worker is defined
+    # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # kubeadm init --v=5 --config=/etc/kubernetes/kubeadm_config.yaml
+  - name: Join the other nodes to the cluster
+    shell: |-
+      kubeadm reset -f &&
+      rm -rf ${HOME}/.kube/config &&
+
+      # Creates a cluster with 1 Control-Plane node an the other nodes join as
+      # worker nodes in the cluster ( 1 CP + many workers )
+      {{ join_command_worker }} &&
+
+      # Multi Control-Plane nodes cluster (all nodes are control-plane nodes)
+      # {{ join_command_control_plane }} &&
+
+      true
+    when: inventory_hostname != hostvars[inventory_hostname].groups.all[0]
+  #   register: join_cp_output
+  # - debug: var=join_cp_output
+# ============================================================================ #
+  - name: Install Calico CNI plugin
+    command: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  #   kubernetes.core.helm_repository:
+  #     name: projectcalico
+  #     repo_url: "https://docs.tigera.io/calico/charts"
+  # - name: Deploy calico
+  #   kubernetes.core.helm:
+  #     name: calico
+  #     chart_ref: projectcalico/tigera-operator
+  #     release_namespace: tigera-operator
+  #     create_namespace: true
+  #   when: inventory_hostname != hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Untaint control plane nodes
+    shell: |-
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        taint nodes --all \
+        node-role.kubernetes.io/control-plane- \
+        || true
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Wait for nodes to become ready
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    shell: |-
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        get nodes |
+        awk '{print $2}' | tail -n +2 | uniq -c
+    register: control_plane_ready
+    retries: 10
+    delay: 10
+    until: control_plane_ready.stdout.strip().split() == [ HOST_COUNT | string , 'Ready']
+# ============================================================================ #
+  - name: Get cluster info
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    command: |-
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        cluster-info
+    register: cluster_info
+  - debug: var=cluster_info.stdout
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Install Metric Server
+  #   command: |-
+  #     kubectl apply \
+  #       --kubeconfig /etc/kubernetes/admin.conf \
+  #       -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/high-availability-1.21+.yaml
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Install Longhorn
+    command: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Label node to be schedulable by Longhorn
+    command: |-
+      kubectl --kubeconfig /etc/kubernetes/admin.conf \
+        label node {{ansible_hostname}} \
+        node.longhorn.io/create-default-disk=true
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Fetch kubeconfig file
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    ansible.builtin.fetch:
+      src: /etc/kubernetes/admin.conf
+      dest: ../admin.conf
+      flat: yes
+# ============================================================================ #

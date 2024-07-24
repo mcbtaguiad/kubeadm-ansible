@@ -1,0 +1,321 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+---
+# ============================================================================ #
+- name: Create dir paths
+  become: true
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: a-rwx,a+rx
+  with_items:
+  - /var/lib/kubelet
+  - /etc/kubernetes/pki
+  - /etc/yum.repos.d
+#   register: out
+# - debug: var=out
+# ============================================================================ #
+- name: Copy kubelet config
+  copy:
+    dest: "/var/lib/kubelet/config.yaml"
+    content: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          cacheTTL: 0s
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+        webhook:
+          cacheAuthorizedTTL: 0s
+          cacheUnauthorizedTTL: 0s
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      cpuManagerReconcilePeriod: 0s
+      evictionPressureTransitionPeriod: 0s
+      fileCheckFrequency: 0s
+      healthzBindAddress: 127.0.0.1
+      healthzPort: 10248
+      httpCheckFrequency: 0s
+      imageMinimumGCAge: 0s
+      kind: KubeletConfiguration
+      logging:
+        flushFrequency: 0
+        options:
+          json:
+            infoBufferSize: "0"
+        verbosity: 0
+      memorySwap: {}
+      nodeStatusReportFrequency: 0s
+      nodeStatusUpdateFrequency: 0s
+      rotateCertificates: true
+      runtimeRequestTimeout: 0s
+      shutdownGracePeriod: 0s
+      shutdownGracePeriodCriticalPods: 0s
+      staticPodPath: /etc/kubernetes/manifests
+      streamingConnectionIdleTimeout: 0s
+      syncFrequency: 0s
+      volumeStatsAggPeriod: 0s
+# ============================================================================ #
+- name: Copy kubeadm config
+  copy:
+    dest: "/etc/kubernetes/kubeadm_config.yaml"
+    content: |
+      apiVersion: kubeadm.k8s.io/v1beta3
+      kind: ClusterConfiguration
+      kubernetesVersion: stable
+      apiServer:
+        certSANs:
+        - {{MASTER_IP}}
+        extraArgs:
+          apiserver-count: "{{HOST_COUNT}}"
+      controlPlaneEndpoint: {{MASTER_IP}}:6443 
+      networking:
+        podSubnet: 10.30.0.0/24
+# ============================================================================ #
+- name: Copy kubernetes CA
+  copy:
+    dest: "/etc/kubernetes/pki/ca.crt"
+    content: |
+      -----BEGIN CERTIFICATE-----
+      MIIC/jCCAeagAwIBAgIBADANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDEwprdWJl
+      cm5ldGVzMB4XDTIzMDYyODE4MjMxNVoXDTMzMDYyNTE4MjMxNVowFTETMBEGA1UE
+      AxMKa3ViZXJuZXRlczCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKph
+      ueURMkSjCOQbGSMHY3sxCGo5egG0B/5IU/4tJJlfN21qec5q/ckEexWQ4j/p3BXA
+      qghSi0FVdiQH/9FTCj7k3o17JMPd9q++PisyCwFpUL3u2EY/k37clofGNEq4efzL
+      syn5kyW6AmiXYFusfNE8uOffd1mZpIgqiefwEilp+htY/9UnvyuX/YqhlAU0wSKk
+      cjZl4VGHRVoRBwoj3wd2bkkFClo4UmX/GOHbDKFY8hR1tt3J0sUhpafLsxy/3fkk
+      qDvtbYFfgisw6SzJaUBXb6B3+nCYh5ssSeA/ox1HNVGO+TPZK5e+UUftG1yLPKnd
+      85iJoIhUAX70oRaIc4sCAwEAAaNZMFcwDgYDVR0PAQH/BAQDAgKkMA8GA1UdEwEB
+      /wQFMAMBAf8wHQYDVR0OBBYEFBwhu+hoOcIDgojiv/F7ulp6+MpbMBUGA1UdEQQO
+      MAyCCmt1YmVybmV0ZXMwDQYJKoZIhvcNAQELBQADggEBAFVh+B/2DTLM24XvtHN1
+      meSNP3M4C6F1C0bgw6mbi4Wn6eeOWWKRBOoc/Vle5G/Dcqlo+2se1gLe9QDVefFD
+      3nX69e2L5vz2ODofinXUZRccqy2EutPy+2oAOULXXNx9olMRZ2m1H1aNZ21xGpBj
+      laB3SbxBrfW62yz32X4I07bK+ckquqCMlAnMxeRXlMllatMRX8p2ZADmNrDLo+DX
+      ke+EPAb09SZLTkkwDlWNSmseG0Hl2/9wbh5AE7d9t47n6UQk9HYT2xgQTE6ibEKr
+      1wcVKHNoAtmZrdLiKKghBZ/mlIE2tNuutIilsDKiYq9VWaWyZqmdKQgwxtXBs4NV
+      Y1A=
+      -----END CERTIFICATE-----
+# ============================================================================ #
+# - name: Set hostname
+#   hostname:
+#     name: "{{ inventory_hostname }}"
+#     use: systemd
+# ============================================================================ #
+- name: Add hostname to /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_ssh_host }} {{ inventory_hostname }}"
+    create: yes
+# ============================================================================ #
+- name: Install EPEL repo
+  yum:
+    name: epel-release
+    state: present
+# ============================================================================ #
+- name: Install packages that allow dnf to be used over HTTPS
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - ca-certificates
+  - curl
+  - yum-utils
+# ============================================================================ #
+- name: Install Longhorn dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - iscsi-initiator-utils
+  - nfs-utils
+  - nfs-utils
+  - yum-utils
+  - jq
+# ============================================================================ #
+- name: Ensure nfs-server is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - nfs-server
+# ============================================================================ #
+- name: Specify and load the following kernel module dependencies
+  shell: |-
+    cat <<EOF | tee /etc/modules-load.d/containerd.conf
+    overlay
+    br_netfilter
+    EOF
+# ============================================================================ #
+- name: Add docker(ContainerD) repository
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+# ============================================================================ #
+- name: Install containerd.io and its dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - containerd.io
+# ============================================================================ #
+# - name: Enable docker service
+#   systemd:
+#     name: docker
+#     enabled: true
+#     state: restarted
+# ============================================================================ #
+- name: Recreate containerd config file
+  shell: containerd config default > /etc/containerd/config.toml
+# ============================================================================ #
+- name: Enable cgroup for containerd
+  register: containerd_cfg_out
+  lineinfile:
+    dest: /etc/containerd/config.toml
+    regexp: '\s*SystemdCgroup = false'
+    line: 'SystemdCgroup = true'
+# ============================================================================ #
+- name: Restart containerd service
+  when: containerd_cfg_out.changed
+  systemd:
+    name: containerd
+    enabled: true
+    state: restarted
+# ============================================================================ #
+- name: Remove swapfile from /etc/fstab
+  mount:
+    name: "{{ item }}"
+    fstype: swap
+    state: absent
+  with_items:
+  - swap
+  - none
+# ============================================================================ #
+- name: Disable swap
+  command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+# ============================================================================ #
+- name: Add Kubernetes yum repository
+  become: yes
+  when: ansible_os_family == "RedHat"
+  yum_repository:
+    name: Kubernetes
+    description: Kubernetes
+    baseurl: https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+    enabled: yes
+    gpgcheck: yes
+    gpgkey: 
+      - https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+# ============================================================================ #
+- name: Install Kubernetes binaries
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - kubelet
+  - kubeadm
+  - kubectl
+# ============================================================================ #
+- name: Ensure kubelet is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - kubelet
+# ============================================================================ #
+- name: Open firewall ports
+  ansible.posix.firewalld:
+    permanent: yes
+    immediate: yes
+    port: "{{item.port}}/{{item.proto}}"
+    state: "{{item.state}}"
+    zone: "{{item.zone}}"
+  with_items:
+  - description: etcd - client communication - control-plane
+    port: 2379
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: etcd - peer communication - control-plane
+    port: 2380
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: kube-apiserver - control-plane
+    port: 6443
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: kubelet - all nodes
+    port: 10250-10259
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: kubelet - nodeport
+    port: 30000-32767
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: calico BGP
+    port: 179
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: calico VXLAN enabled
+    port: 4789
+    proto: udp
+    state: enabled
+    zone: public
+  - description: calico Typha enabled
+    port: 5473
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: calico Wireguard enabled
+    port: 51820-51821 
+    proto: udp
+    state: enabled
+    zone: public
+  - description: ingress http
+    port: 80
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: ingress https
+    port: 443
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: ingress 8443
+    port: 8443
+    proto: tcp
+    state: enabled
+    zone: public
+# ============================================================================ #
+# Set ip forwarding on in /proc and in the sysctl file and reload if necessary
+- name: Set ipv4 ip forward
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+# ============================================================================ #
+- name: Ensure br_netfilter module is loaded into kernel
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+# ============================================================================ #
