@@ -14,7 +14,7 @@
   with_items:
   - /var/lib/kubelet
   - /etc/kubernetes/pki
-  - /etc/yum.repos.d
+  - /opt/cni/bin/
 #   register: out
 # - debug: var=out
 # ============================================================================ #
@@ -104,7 +104,7 @@
       ke+EPAb09SZLTkkwDlWNSmseG0Hl2/9wbh5AE7d9t47n6UQk9HYT2xgQTE6ibEKr
       1wcVKHNoAtmZrdLiKKghBZ/mlIE2tNuutIilsDKiYq9VWaWyZqmdKQgwxtXBs4NV
       Y1A=
-      -----END CERTIFICATE-----
+#       -----END CERTIFICATE-----
 # ============================================================================ #
 # - name: Set hostname
 #   hostname:
@@ -122,7 +122,7 @@
     name: epel-release
     state: present
 # ============================================================================ #
-- name: Install packages that allow dnf to be used over HTTPS
+- name: Install prerequisite packages 
   package:
     name: "{{ item }}"
     state: present
@@ -131,6 +131,7 @@
   - ca-certificates
   - curl
   - yum-utils
+  - python3
 # ============================================================================ #
 - name: Install Longhorn dependecies
   package:
@@ -138,19 +139,41 @@
     state: present
     # update_cache: yes
   with_items:
+  - device-mapper-persistent-data
   - iscsi-initiator-utils
+  - cryptsetup
   - nfs-utils
   - nfs-utils
   - yum-utils
+  - lvm2
   - jq
+
 # ============================================================================ #
-- name: Ensure nfs-server is started
+- name: Enable kernel module iscsi_tcp
+  community.general.modprobe:
+    name: iscsi_tcp
+    state: present
+# ============================================================================ #
+- name: Ensure nfs-server and iscsi is started
   systemd:
     name: "{{ item }}"
     state: started
     enabled: true
   with_items:
   - nfs-server
+  - iscsi
+# ============================================================================ #
+- name: Install CNI plugin 
+  unarchive:
+    src: https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-amd64-v1.5.1.tgz
+    dest: /opt/cni/bin/
+    extra_opts: "--strip-components=1"
+    owner: root
+    group: root
+    mode: 0755
+    remote_src: true
+  # args:
+  #   creates: /opt/cni/bin/
 # ============================================================================ #
 - name: Specify and load the following kernel module dependencies
   shell: |-
@@ -204,7 +227,7 @@
   - none
 # ============================================================================ #
 - name: Disable swap
-  command: swapoff -a
+  ansible.builtin.shell: swapoff -a
   when: ansible_swaptotal_mb > 0
 # ============================================================================ #
 - name: Add Kubernetes yum repository

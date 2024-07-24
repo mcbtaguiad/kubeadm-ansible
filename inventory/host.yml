@@ -1,0 +1,23 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+
+# ============================================================================ #
+all:
+  hosts:
+    master1:
+      ansible_ssh_host: 192.168.122.144
+    worker1:
+      ansible_ssh_host: 192.168.122.88
+    # worker2:
+    #   ansible_ssh_host: 192.168.122.88
+master:
+  hosts:
+    master1:
+      ansible_ssh_host: 192.168.122.144
+worker:
+  hosts:
+    worker1:
+      ansible_ssh_host: 192.168.122.88
+#     # worker2:
+#     #   ansible_ssh_host: 192.168.122.88
