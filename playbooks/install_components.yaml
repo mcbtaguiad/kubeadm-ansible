@@ -1,0 +1,52 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+- hosts: master
+  become: true
+  vars:
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
+    MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
+  tasks:
+# ============================================================================ #
+  # - name: Install Longhorn
+  #   ansible.builtin.shell: |-
+  #     kubectl apply \
+  #       --kubeconfig /etc/kubernetes/admin.conf \
+  #       -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/prerequisite/longhorn-iscsi-installation.yaml
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Install Longhorn
+  #   ansible.builtin.shell: |-
+  #     kubectl apply \
+  #       --kubeconfig /etc/kubernetes/admin.conf \
+  #       -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/prerequisite/longhorn-nfs-installation.yaml
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Install Longhorn
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Label node to be schedulable by Longhorn
+    ansible.builtin.shell: |-
+      kubectl --kubeconfig /etc/kubernetes/admin.conf \
+        label node {{ansible_hostname}} \
+        node.longhorn.io/create-default-disk=true
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Install Metallb
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Fetch kubeconfig file
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    ansible.builtin.fetch:
+      src: /etc/kubernetes/admin.conf
+      dest: ../admin.conf
+      flat: yes
+# ============================================================================ #
