@@ -40,30 +40,19 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
-      
-      - name: pwd
-        shell: bash
-        run: |
-          cd /ansible && ls -lah
 
       - name: Reset K8S Cluster
         shell: bash
         run: |
-          tree /ansible
-      
+          ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
 
-      # - name: Reset K8S Cluster
-      #   shell: bash
-      #   run: |
-      #     ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
-
-      # - name: Init Cluster
-      #   shell: bash
-      #   run: |
-      #     ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
+      - name: Init Cluster
+        shell: bash
+        run: |
+          ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
       
-      # - name: Install Components
-      #   shell: bash
-      #   run: |
-      #     ansible-playbook /ansible/playbooks/install_components.yaml -i /ansible/inventory/host.yaml
+      - name: Install Components
+        shell: bash
+        run: |
+          ansible-playbook /ansible/playbooks/install_components.yaml -i /ansible/inventory/host.yaml
 
