@@ -24,13 +24,20 @@ on:
 #   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
-    # if: github.event.pull_request.merged == true
+  ansible-playbook:
+    runs-on: ubuntu-latest
     runs-on: docker.io/mcbtaguiad/ansible:8.7.0
     permissions:
       contents: read
       packages: write
-    
+    container:
+      image: docker.io/mcbtaguiad/ansible:8.7.0
+      # env:
+      #   NODE_ENV: development
+      # ports:
+      #   - 80
+      # volumes:
+      #   - my_docker_volume:/volume_mount    
     steps:
       - name: Reset K8S Cluster
         shell: bash
