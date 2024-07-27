@@ -35,8 +35,8 @@ jobs:
       #   NODE_ENV: development
       # ports:
       #   - 80
-      # volumes:
-      #   - my_docker_volume:/volume_mount    
+      volumes:
+        - ./:/ansible  
     steps:
       - name: Reset K8S Cluster
         shell: bash
