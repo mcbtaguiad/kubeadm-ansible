@@ -26,7 +26,6 @@ on:
 jobs:
   ansible-playbook:
     runs-on: ubuntu-latest
-    runs-on: docker.io/mcbtaguiad/ansible:8.7.0
     permissions:
       contents: read
       packages: write
