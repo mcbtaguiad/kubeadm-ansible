@@ -370,7 +370,7 @@
     zone: public
   when: ansible_os_family == 'RedHat'
 # ============================================================================ #
-- name: Close firewall ports
+- name: Open firewall ports
   community.general.ufw:
     rule: allow
     proto: "{{item.proto}}"

@@ -166,6 +166,7 @@
         state: present
     - name: Enable swap
       ansible.builtin.shell: swapon -a
+    ignore_errors: True
 # ============================================================================ #
   - name: Close firewall ports
     ansible.posix.firewalld:
@@ -247,7 +248,7 @@
       zone: public
     when: ansible_os_family == 'RedHat'
 # ============================================================================ #
-  - name: Open firewall ports
+  - name: Close firewall ports
     community.general.ufw:
       rule: deny
       proto: "{{item.proto}}"
