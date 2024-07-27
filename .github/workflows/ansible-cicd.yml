@@ -35,8 +35,8 @@ jobs:
       #   NODE_ENV: development
       # ports:
       #   - 80
-      volumes:
-        - ${{ github.workspace }}:/ansible  
+      # volumes:
+      #   - ${{ github.workspace }}:/ansible  
     steps:
       - name: Reset K8S Cluster
         shell: bash
