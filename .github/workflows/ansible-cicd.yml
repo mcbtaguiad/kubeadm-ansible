@@ -44,7 +44,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set host and secret values
-        shell: |
+        shell: bash
+        run: |
           sed -i "s/MASTER1_IP/$MASTER1_IP/g" /ansible/inventory/host.yaml
           sed -i "s/WORKER1_IP/$WORKER1_IP/g" /ansible/inventory/host.yaml
           sed -i "s/SERVER_PASSWORD/$SERVER_PASSWORD/g" /ansible/inventory/group_vars/all.yaml
