@@ -41,7 +41,7 @@ jobs:
       - name: Reset K8S Cluster
         shell: bash
         run: |
-          pwd
+          cd /ansible && pwd
       - name: ls
         shell: bash
         run: |
