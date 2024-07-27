@@ -3,6 +3,6 @@
 # ============================================================================ #
 
 # kubeconfig yaml file generated for admin access to the cluster
-fs/etc/kubernetes/admin.conf
+admin.conf
 venv/
 # ============================================================================ #
