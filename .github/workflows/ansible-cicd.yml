@@ -42,4 +42,8 @@ jobs:
         shell: bash
         run: |
           pwd
+      - name: ls
+        shell: bash
+        run: |
+          ls -lah
 
