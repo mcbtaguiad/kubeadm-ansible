@@ -44,6 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set host and secret values
+        if: success() || failure()
         shell: bash
         run: |
           sed -i "s/MASTER1_IP/$MASTER1_IP/g" /ansible/inventory/host.yaml
@@ -51,16 +52,19 @@ jobs:
           sed -i "s/SERVER_PASSWORD/$SERVER_PASSWORD/g" /ansible/inventory/group_vars/all.yaml
 
       - name: Reset K8S Cluster
+        if: success() || failure()
         shell: bash
         run: |
           ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
 
       - name: Init Cluster
+        if: success() || failure()
         shell: bash
         run: |
           ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
       
       - name: Install Components
+        if: success() || failure()
         shell: bash
         run: |
           ansible-playbook /ansible/playbooks/install_components.yaml -i /ansible/inventory/host.yaml
