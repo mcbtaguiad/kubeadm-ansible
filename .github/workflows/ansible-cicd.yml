@@ -41,15 +41,5 @@ jobs:
       - name: Reset K8S Cluster
         shell: bash
         run: |
-          ansible-playbook playbooks/reset.yaml -i inventory/host.yaml
-
-      - name: Init Cluster
-        shell: bash
-        run: |
-          ansible-playbook playbooks/kubeadm_init.yaml -i inventory/host.yaml
-      
-      - name: Install Components
-        shell: bash
-        run: |
-          ansible-playbook playbooks/install_components.yaml -i inventory/host.yaml
+          pwd
 
