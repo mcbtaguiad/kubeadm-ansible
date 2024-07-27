@@ -20,8 +20,8 @@ on:
 
 
 env:
-  MASTER1_IP: ${{ secrets.MASTER1_IP }}
-  WORKER1_IP: ${{ secrets.WORKER1_IP }}
+  MASTER1_IP: ${{ eva.MASTER1_IP }}
+  WORKER1_IP: ${{ env.WORKER1_IP }}
   # WORKER2_IP: ${{ env.WORKER2_IP }}
   SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
 
@@ -45,11 +45,6 @@ jobs:
 
       - name: Set host and secret values
         shell: bash
-        env:
-          MASTER1_IP: ${{ secrets.MASTER1_IP }}
-          WORKER1_IP: ${{ secrets.WORKER1_IP }}
-          # WORKER2_IP: ${{ env.WORKER2_IP }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
           sed -i "s/MASTER1_IP/$MASTER1_IP/g" /ansible/inventory/host.yaml
           sed -i "s/WORKER1_IP/$WORKER1_IP/g" /ansible/inventory/host.yaml
@@ -57,31 +52,16 @@ jobs:
 
       - name: Reset K8S Cluster
         shell: bash
-        env:
-          MASTER1_IP: ${{ secrets.MASTER1_IP }}
-          WORKER1_IP: ${{ secrets.WORKER1_IP }}
-          # WORKER2_IP: ${{ env.WORKER2_IP }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
           ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
 
       - name: Init Cluster
         shell: bash
-        env:
-          MASTER1_IP: ${{ secrets.MASTER1_IP }}
-          WORKER1_IP: ${{ secrets.WORKER1_IP }}
-          # WORKER2_IP: ${{ env.WORKER2_IP }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
           ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
       
       - name: Install Components
         shell: bash
-        env:
-          MASTER1_IP: ${{ secrets.MASTER1_IP }}
-          WORKER1_IP: ${{ secrets.WORKER1_IP }}
-          # WORKER2_IP: ${{ env.WORKER2_IP }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
           ansible-playbook /ansible/playbooks/install_components.yaml -i /ansible/inventory/host.yaml
 
