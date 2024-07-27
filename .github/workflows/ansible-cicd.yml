@@ -20,8 +20,8 @@ on:
 
 
 env:
-  MASTER1_IP: ${{ env.MASTER1_IP }}
-  WORKER1_IP: ${{ env.WORKER1_IP }}
+  MASTER1_IP: ${{ vars.MASTER1_IP }}
+  WORKER1_IP: ${{ vars.WORKER1_IP }}
   # WORKER2_IP: ${{ env.WORKER2_IP }}
   SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
 
