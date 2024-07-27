@@ -6,18 +6,18 @@
 all:
   hosts:
     master1:
-      ansible_ssh_host: 192.168.122.4
+      ansible_ssh_host: ${{ env.MASTER1_IP }}
     worker1:
-      ansible_ssh_host: 192.168.122.58
+      ansible_ssh_host: ${{ env.WORKER1_IP }}
     # worker2:
     #   ansible_ssh_host: 192.168.122.88
 master:
   hosts:
     master1:
-      ansible_ssh_host: 192.168.122.4
+      ansible_ssh_host: ${{ env.MASTER1_IP }}
 worker:
   hosts:
     worker1:
-      ansible_ssh_host: 192.168.122.58
+      ansible_ssh_host: ${{ env.WORKER1_IP }}
 #     # worker2:
 #     #   ansible_ssh_host: 192.168.122.88
