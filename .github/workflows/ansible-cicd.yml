@@ -20,7 +20,7 @@ on:
 
 
 env:
-  MASTER1_IP: ${{ eva.MASTER1_IP }}
+  MASTER1_IP: ${{ env.MASTER1_IP }}
   WORKER1_IP: ${{ env.WORKER1_IP }}
   # WORKER2_IP: ${{ env.WORKER2_IP }}
   SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
