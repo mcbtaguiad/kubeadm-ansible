@@ -1,7 +1,7 @@
 services:
   app:
       container_name: ansible
-      image: ansible:8.7.0
+      image: docker.io/mcbtaguiad/ansible:8.7.0
       build:
           context: .
           dockerfile: ./docker/Dockerfile

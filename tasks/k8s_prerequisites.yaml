@@ -21,11 +21,13 @@
     line: '{{ hostvars[item].ansible_default_ipv4.address }} {{item}}'
     state: present
   with_items: '{{ groups["all"] }}'
+
 # ============================================================================ #
 - name: Make sure EPEL repo is installed
   yum:
     name: epel-release
     state: present
+  when: ansible_os_family == 'RedHat'
 # ============================================================================ #
 - name: Install prerequisite packages 
   package:
@@ -36,6 +38,19 @@
   - ca-certificates
   - curl
   - yum-utils
+  when: ansible_os_family == 'RedHat'
+
+- name: Install prerequisite packages 
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - apt-transport-https 
+  - ca-certificates 
+  - curl 
+  - gpg
+  when: ansible_os_family == 'Debian'
 # ============================================================================ #
 - name: Install Longhorn dependecies
   package:
@@ -49,10 +64,22 @@
   - nfs-utils
   - lvm2
   - jq
+  when: ansible_os_family == 'RedHat'
+- name: Install Longhorn dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - open-iscsi
+  - nfs-server
+  - ufw
+  when: ansible_os_family == 'Debian'
 # ============================================================================ #
 - name: Specify and load the following kernel module dependencies
   shell: |-
     echo "InitiatorName=$(/sbin/iscsi-iname)" > /etc/iscsi/initiatorname.iscsi
+  when: ansible_os_family == 'RedHat'
 # ============================================================================ #
 - name: Enable kernel module iscsi_tcp
   community.general.modprobe:
@@ -67,6 +94,7 @@
   with_items:
   - nfs-server
   - iscsi
+  - ufw
 # ============================================================================ #
 - name: Install CNI plugin 
   unarchive:
@@ -87,10 +115,41 @@
     br_netfilter
     EOF
 # ============================================================================ #
+- name: Set sysctl k8s config
+  copy:
+    dest: "/etc/sysctl.d/99-kubernetes-cri.conf"
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+# ============================================================================ #
+# - name: Set net.ipv4.ip_forward
+#   ansible.posix.sysctl:
+#     name: net.ipv4.ip_forward
+#     value: '1'
+#     sysctl_set: true
+#     state: present
+#     reload: true
+# - name: Set net.bridge.bridge-nf-call-iptables
+#   ansible.posix.sysctl:
+#     name: net.bridge.bridge-nf-call-iptables
+#     value: '1'
+#     sysctl_set: true
+#     state: present
+#     reload: true
+# - name: Set net.bridge.bridge-nf-call-iptables
+#   ansible.posix.sysctl:
+#     name: net.bridge.bridge-nf-call-ip6tables
+#     value: '1'
+#     sysctl_set: true
+#     state: present
+#     reload: true
+# ============================================================================ #
 - name: Add docker(ContainerD) repository
   get_url:
     url: https://download.docker.com/linux/centos/docker-ce.repo
     dest: /etc/yum.repos.d/docker-ce.repo
+  when: ansible_os_family == 'RedHat'
 # ============================================================================ #
 - name: Install containerd.io and its dependecies
   package:
@@ -98,12 +157,15 @@
     state: present
   with_items:
   - containerd.io
-# ============================================================================ #
-# - name: Enable docker service
-#   systemd:
-#     name: docker
-#     enabled: true
-#     state: restarted
+  when: ansible_os_family == 'RedHat'
+
+- name: Install containerd.io and its dependecies
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - containerd
+  when: ansible_os_family == 'Debian'
 # ============================================================================ #
 - name: Recreate containerd config file
   shell: containerd config default > /etc/containerd/config.toml
@@ -122,38 +184,75 @@
     enabled: true
     state: restarted
 # ============================================================================ #
-- name: Get swap disk
+- name: Remove Swap
+  block:
+  - name: Get swap disk
+    shell: |-
+      fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
+    register: SWAP_UUID
+    when: ansible_os_family == 'RedHat'
+
+  - name: Get swap disk
+    shell: |-
+      fdisk -l | grep swap | awk '{ print $1 }' | sed 's/\://' 
+    register: SWAP_DISK
+    when: ansible_os_family == 'Debian'
+  - name: Get UUID
+    shell: |-
+      blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
+    register: SWAP_UUID
+    when: ansible_os_family == 'Debian'
+  - name: Unmount swap
+    mount:
+      src: "{{SWAP_UUID.stdout}}"
+      path: swap
+      fstype: swap
+      opts: defaults
+      state: absent
+  - name: Disable swap
+    ansible.builtin.shell: swapoff -a
+    when: ansible_swaptotal_mb > 0
+# ============================================================================ #
+- name: Add Kubernetes repository
+  block:
+  - name: Add Kubernetes yum repository
+    become: yes
+    yum_repository:
+      name: Kubernetes
+      description: Kubernetes
+      baseurl: https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+      enabled: yes
+      gpgcheck: yes
+      gpgkey: 
+        - https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+    when: ansible_os_family == 'RedHat'
+
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+    ignore_errors: yes
+    when: ansible_os_family == 'Debian'
+
+  - name: Add Kubernetes apt repository
+    block:
+      # - name: kubernetes repo gpg
+      #   ansible.builtin.get_url:
+      #     url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+      #     dest: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      - name: kubernetes repo gpg
+        shell: |-
+          curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+      - name: kubernetes repo
+        ansible.builtin.apt_repository:
+          repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+          state: present
+    when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Update and upgrade apt packages
   shell: |-
-    fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
-  register: SWAP_DISK
-# - name: Get UUID
-#   shell: |-
-#     blkid {{SWAP_FS.stdout}} | awk '{ print $2}'
-#   register: SWAP_UUID
-# ============================================================================ #
-- name: Unmount swap
-  mount:
-    src: "{{SWAP_DISK.stdout}}"
-    path: swap
-    fstype: swap
-    opts: defaults
-    state: absent
-# ============================================================================ #
-- name: Disable swap
-  ansible.builtin.shell: swapoff -a
-  when: ansible_swaptotal_mb > 0
-# ============================================================================ #
-- name: Add Kubernetes yum repository
-  become: yes
-  when: ansible_os_family == "RedHat"
-  yum_repository:
-    name: Kubernetes
-    description: Kubernetes
-    baseurl: https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
-    enabled: yes
-    gpgcheck: yes
-    gpgkey: 
-      - https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+    apt update -y
+  when: ansible_os_family == 'Debian'
 # ============================================================================ #
 - name: Install Kubernetes binaries
   package:
@@ -171,6 +270,25 @@
     enabled: true
   with_items:
   - kubelet
+# ============================================================================ #
+- name: Install helm
+  block: 
+  - name: Download Helm installation script
+    get_url:
+      url: https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+      dest: /tmp/get_helm.sh
+      mode: '0755'
+  - name: Run Helm installation script
+    command: /tmp/get_helm.sh
+    args:
+      creates: /usr/local/bin/helm
+    register: helm_install_result
+    changed_when: false
+  - name: Add /usr/local/bin to PATH
+    lineinfile:
+      path: ~/.bashrc
+      line: 'export PATH=$PATH:/usr/local/bin'
+    when: helm_install_result.rc == 0
 # ============================================================================ #
 - name: Open firewall ports
   ansible.posix.firewalld:
@@ -250,18 +368,57 @@
     proto: tcp
     state: enabled
     zone: public
+  when: ansible_os_family == 'RedHat'
 # ============================================================================ #
-# Set ip forwarding on in /proc and in the sysctl file and reload if necessary
-- name: Set ipv4 ip forward
-  ansible.posix.sysctl:
-    name: net.ipv4.ip_forward
-    value: '1'
-    sysctl_set: true
-    state: present
-    reload: true
-# ============================================================================ #
-- name: Ensure br_netfilter module is loaded into kernel
-  community.general.modprobe:
-    name: br_netfilter
-    state: present
+- name: Close firewall ports
+  community.general.ufw:
+    rule: allow
+    proto: "{{item.proto}}"
+    port: "{{item.port}}"
+  with_items:
+  - description: etcd - client communication - control-plane
+    port: 2379
+    proto: tcp
+    state: enabled
+  - description: etcd - peer communication - control-plane
+    port: 2380
+    proto: tcp
+  - description: platform Agent
+    port: 8090:8091
+    proto: tcp
+  - description: VxLAN backend 
+    port: 8472
+    proto: udp
+  - description: kube-apiserver - control-plane
+    port: 6443
+    proto: tcp
+  - description: kubelet - all nodes
+    port: 10250:10259
+    proto: tcp
+    zone: public
+  - description: kubelet - nodeport
+    port: 30000:32767
+    proto: tcp
+  - description: calico BGP
+    port: 179
+    proto: tcp
+  - description: calico VXLAN
+    port: 4789
+    proto: udp
+  - description: calico Typha
+    port: 5473
+    proto: tcp
+  - description: calico Wireguard
+    port: 51820:51821 
+    proto: udp
+  - description: ingress http
+    port: 80
+    proto: tcp
+  - description: ingress https
+    port: 443
+    proto: tcp
+  - description: ingress 8443
+    port: 8443
+    proto: tcp
+  when: ansible_os_family == 'Debian'
 # ============================================================================ #

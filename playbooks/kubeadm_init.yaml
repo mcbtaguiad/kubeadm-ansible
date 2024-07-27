@@ -114,3 +114,4 @@
     register: cluster_info
   - debug: var=cluster_info.stdout
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #

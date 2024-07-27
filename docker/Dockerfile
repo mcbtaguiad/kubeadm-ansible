@@ -15,7 +15,7 @@ RUN apt update -y && \
     apt install -y sshpass
 
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
-    chmod +x kubectl
+    chmod +x kubectl && \
     cp kubectl /usr/bin/kubectl
 
 RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 && \

@@ -8,12 +8,11 @@
     MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
 # ============================================================================ #
   tasks:
-  - name: Init first cluster member
+  - name: Reset/delete cluster
     # Run this only on the first node in the inventory
     changed_when: false
-    register: join_commands
     shell: |-
-      kubeadm reset -f &&
+      kubeadm reset -f
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     ignore_errors: True
 # ============================================================================ #
@@ -37,13 +36,27 @@
     - iscsi_tcp
     - br_netfilter
 # ============================================================================ #
-  - name: Disable ipv4 ip forward
-    ansible.posix.sysctl:
-      name: net.ipv4.ip_forward
-      value: '0'
-      sysctl_set: true
-      state: present
-      reload: true
+  # - name: Set net.ipv4.ip_forward
+  # ansible.posix.sysctl:
+  #   name: net.ipv4.ip_forward
+  #   value: '1'
+  #   sysctl_set: true
+  #   state: absent
+  #   reload: true
+  # - name: Set net.bridge.bridge-nf-call-iptables
+  #   ansible.posix.sysctl:
+  #     name: net.bridge.bridge-nf-call-iptables
+  #     value: '1'
+  #     sysctl_set: true
+  #     state: absent
+  #     reload: true
+  # - name: Set net.bridge.bridge-nf-call-iptables
+  #   ansible.posix.sysctl:
+  #     name: net.bridge.bridge-nf-call-ip6tables
+  #     value: '1'
+  #     sysctl_set: true
+  #     state: absent
+  #     reload: true
 # ============================================================================ #
   - name: Remove installed packages
     package:
@@ -59,6 +72,20 @@
     - kubelet
     - kubeadm
     - kubectl
+    when: ansible_os_family == 'RedHat'
+  - name: Remove installed packages
+    ansible.builtin.apt:
+      name: "{{ item }}"
+      state: absent
+    with_items:
+    - open-iscsi
+    - nfs-server
+    - ufw
+    - containerd
+    - kubelet
+    - kubeadm
+    - kubectl
+    when: ansible_os_family == 'RedHat'
 # ============================================================================ #
   - name: Remove file (delete file)
     ansible.builtin.file:
@@ -66,6 +93,23 @@
       state: absent
     with_items:
     - /etc/iscsi/initiatorname.iscsi
+    - /etc/sysctl.d/99-kubernetes-cri.conf
+    when: ansible_os_family == 'RedHat'
+
+  - name: Remove file (delete file)
+    ansible.builtin.file:
+      path: "{{ item }}"
+      state: absent
+    with_items:
+    - /etc/apt/sources.list.d/kubernetes.list
+    - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    when: ansible_os_family == 'Debian'
+# ============================================================================ #
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+    ignore_errors: yes
+    when: ansible_os_family == 'Debian'
 # ============================================================================ #
   - name: Remove CNI plugijn
     ansible.builtin.file:
@@ -80,30 +124,48 @@
       state: absent
     with_items: '{{ groups["all"] }}'
 # ============================================================================ #
-  - name: Remove Kubernetes repository 
-    ansible.builtin.yum_repository:
-      name: Kubernetes
-      state: absent
+  - name:
+    block:
+    - name: Remove Kubernetes repository 
+      ansible.builtin.yum_repository:
+        name: Kubernetes
+        state: absent
+      when: ansible_os_family == 'RedHat'
+
+    - name: Add Kubernetes apt repository
+      block:
+      - name: kubernetes repo
+        ansible.builtin.apt_repository:
+          repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+          state: absent
+      when: ansible_os_family == 'Debian'
 # ============================================================================ #
-  - name: Get swap disk
-    shell: |-
-      fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
-    register: SWAP_DISK
-  # - name: Get UUID
-  #   shell: |-
-  #     blkid {{SWAP_FS.stdout}} | awk '{ print $2}'
-  #   register: SWAP_UUID
-# ============================================================================ #
-  - name: Mount swap
-    mount:
-      src: "{{SWAP_DISK.stdout}}"
-      path: swap
-      fstype: swap
-      opts: defaults
-      state: present
-# ============================================================================ #
-  - name: Enable swap
-    ansible.builtin.shell: swapon -a
+  - name: Unount Swap
+    block:
+    - name: Get swap disk
+      shell: |-
+        fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
+      register: SWAP_DISK
+      when: ansible_os_family == 'RedHat'
+    - name: Get swap disk
+      shell: |-
+        fdisk -l | grep swap | awk '{ print $1 }' | sed 's/\://' 
+      register: SWAP_DISK
+      when: ansible_os_family == 'Debian'
+    - name: Get UUID
+      shell: |-
+        blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
+      register: SWAP_UUID
+      when: ansible_os_family == 'Debian'
+    - name: Mount swap
+      mount:
+        src: "{{SWAP_UUID.stdout}}"
+        path: swap
+        fstype: swap
+        opts: defaults
+        state: present
+    - name: Enable swap
+      ansible.builtin.shell: swapon -a
 # ============================================================================ #
   - name: Close firewall ports
     ansible.posix.firewalld:
@@ -183,4 +245,56 @@
       proto: tcp
       state: disabled
       zone: public
-    ignore_errors: True
+    when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+  - name: Open firewall ports
+    community.general.ufw:
+      rule: deny
+      proto: "{{item.proto}}"
+      port: "{{item.port}}"
+    with_items:
+    - description: etcd - client communication - control-plane
+      port: 2379
+      proto: tcp
+    - description: etcd - peer communication - control-plane
+      port: 2380
+      proto: tcp
+    - description: platform Agent
+      port: 8090:8091
+      proto: tcp
+    - description: VxLAN backend 
+      port: 8472
+      proto: udp
+    - description: kube-apiserver - control-plane
+      port: 6443
+      proto: tcp
+    - description: kubelet - all nodes
+      port: 10250:10259
+      proto: tcp
+    - description: kubelet - nodeport
+      port: 30000:32767
+      proto: tcp
+    - description: calico BGP
+      port: 179
+      proto: tcp
+    - description: calico VXLAN
+      port: 4789
+      proto: udp
+    - description: calico Typha
+      port: 5473
+      proto: tcp
+    - description: calico Wireguard
+      port: 51820:51821 
+      proto: udp
+    - description: ingress http
+      port: 80
+      proto: tcp
+    - description: ingress https
+      port: 443
+      proto: tcp
+    - description: ingress 8443
+      port: 8443
+      proto: tcp
+      zone: public
+    when: ansible_os_family == 'Debian'
+# ============================================================================ #

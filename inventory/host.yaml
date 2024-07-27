@@ -6,18 +6,18 @@
 all:
   hosts:
     master1:
-      ansible_ssh_host: 192.168.122.144
+      ansible_ssh_host: 192.168.122.4
     worker1:
-      ansible_ssh_host: 192.168.122.88
+      ansible_ssh_host: 192.168.122.58
     # worker2:
     #   ansible_ssh_host: 192.168.122.88
 master:
   hosts:
     master1:
-      ansible_ssh_host: 192.168.122.144
+      ansible_ssh_host: 192.168.122.4
 worker:
   hosts:
     worker1:
-      ansible_ssh_host: 192.168.122.88
+      ansible_ssh_host: 192.168.122.58
 #     # worker2:
 #     #   ansible_ssh_host: 192.168.122.88
