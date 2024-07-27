@@ -19,9 +19,11 @@ on:
     types: [closed]
 
 
-# env:
-#   REGISTRY: ghcr.io
-#   IMAGE_NAME: ${{ github.repository }}
+env:
+  MASTER1_IP: ${{ env.MASTER1_IP }}
+  WORKER1_IP: ${{ env.WORKER1_IP }}
+  # WORKER2_IP: ${{ env.WORKER2_IP }}
+  SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
 
 jobs:
   ansible-playbook:
@@ -40,6 +42,12 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
+
+      - name: Set host and secret values
+        shell: |
+          sed -i "s/MASTER1_IP/$MASTER1_IP/g" /ansible/inventory/host.yaml
+          sed -i "s/WORKER1_IP/$WORKER1_IP/g" /ansible/inventory/host.yaml
+          sed -i "s/SERVER_PASSWORD/$SERVER_PASSWORD/g" /ansible/inventory/group_vars/all.yaml
 
       - name: Reset K8S Cluster
         shell: bash
