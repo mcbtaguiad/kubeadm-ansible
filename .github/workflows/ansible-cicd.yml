@@ -56,6 +56,10 @@ jobs:
         shell: bash
         run: |
           ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
+        
+      - name: Sleep for 3 minutes, waiting for server to get
+        run: sleep 180s
+        shell: bash
 
       - name: Init Cluster
         if: success() || failure()
