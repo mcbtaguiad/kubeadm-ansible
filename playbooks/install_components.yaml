@@ -34,11 +34,11 @@
       ansible.builtin.shell: |-
         initial_password=$(kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd \
           get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-          argocd account update-password --account admin --current-password $initial_password --new-password $K8S_PASSWORD --insecure'
-        kubectl exec deployment/argocd-server -n argocd -- bash -c "argocd login  argocd-server --insecure \
+        kubectl --kubeconfig /etc/kubernetes/admin.conf exec deployment/argocd-server -n argocd -- bash -c "argocd login  argocd-server --insecure \
           --username admin --password $initial_password && \
           argocd account update-password --account admin --current-password $initial_password \
           --new-password $K8S_PASSWORD --insecure"
+      ignore_errors: yes
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
   - name: Install Metallb
