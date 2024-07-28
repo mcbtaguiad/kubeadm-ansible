@@ -1,26 +1,26 @@
 # ============================================================================ #
 # Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
 # ============================================================================ #
-# - hosts: master
-#   become: true
-#   vars:
-#     HOST_COUNT: "{{ ansible_play_hosts | length }}"
-#     MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
-#   tasks:
-#   - name: Install Longhorn
-#     block:
-#     - name: Add repo Longhorn
-#       kubernetes.core.helm_repository:
-#         name: longhorn
-#         repo_url: "https://charts.longhorn.io"
-#     - name: Install Longhorn
-#       kubernetes.core.helm:
-#         name: longhorn
-#         chart_ref: longhorn/longhorn
-#         release_namespace: longhorn-system
-#         create_namespace: true
-#         kubeconfig: /etc/kubernetes/admin.conf
-#     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+- hosts: master
+  become: true
+  vars:
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
+    MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
+  tasks:
+  # - name: Install Longhorn
+  #   block:
+  #   - name: Add repo Longhorn
+  #     kubernetes.core.helm_repository:
+  #       name: longhorn
+  #       repo_url: "https://charts.longhorn.io"
+  #   - name: Install Longhorn
+  #     kubernetes.core.helm:
+  #       name: longhorn
+  #       chart_ref: longhorn/longhorn
+  #       release_namespace: longhorn-system
+  #       create_namespace: true
+  #       kubeconfig: /etc/kubernetes/admin.conf
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
   # ============================================================================ #
   # - name: Label node to be schedulable by Longhorn
   #   ansible.builtin.shell: |-
