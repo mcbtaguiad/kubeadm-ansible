@@ -115,3 +115,14 @@
   - debug: var=cluster_info.stdout
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
+  - name: Create
+    kubernetes.core.k8s:
+      state: present
+        definition:
+          apiVersion: v1
+          kind: Node
+          metadata:
+            name: "{{ ansible_hostname }}"
+            labels:
+              node-role.kubernetes.io/worker: true
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]

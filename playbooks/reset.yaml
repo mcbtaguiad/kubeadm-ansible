@@ -80,12 +80,12 @@
     with_items:
     - open-iscsi
     - nfs-server
-    - ufw
+    # - ufw
     - containerd
     - kubelet
     - kubeadm
     - kubectl
-    when: ansible_os_family == 'RedHat'
+    when: ansible_os_family == 'Debian'
 # ============================================================================ #
   - name: Remove file (delete file)
     ansible.builtin.file:
@@ -299,3 +299,6 @@
       zone: public
     when: ansible_os_family == 'Debian'
 # ============================================================================ #
+  - name: Reboot machine
+    ansible.builtin.reboot:
+      msg: "Rebooting machine in 5 seconds"

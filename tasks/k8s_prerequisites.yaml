@@ -38,6 +38,7 @@
   - ca-certificates
   - curl
   - yum-utils
+  - git
   when: ansible_os_family == 'RedHat'
 
 - name: Install prerequisite packages 
@@ -50,6 +51,7 @@
   - ca-certificates 
   - curl 
   - gpg
+  - git
   when: ansible_os_family == 'Debian'
 # ============================================================================ #
 - name: Install Longhorn dependecies
@@ -227,11 +229,7 @@
         - https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
     when: ansible_os_family == 'RedHat'
 
-  - name: Update apt cache
-    apt:
-      update_cache: yes
-    ignore_errors: yes
-    when: ansible_os_family == 'Debian'
+  
 
   - name: Add Kubernetes apt repository
     block:
@@ -248,11 +246,12 @@
           repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
           state: present
     when: ansible_os_family == 'Debian'
-# ============================================================================ #
-- name: Update and upgrade apt packages
-  shell: |-
-    apt update -y
-  when: ansible_os_family == 'Debian'
+
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+    ignore_errors: yes
+    when: ansible_os_family == 'Debian'
 # ============================================================================ #
 - name: Install Kubernetes binaries
   package:
@@ -289,6 +288,7 @@
       path: ~/.bashrc
       line: 'export PATH=$PATH:/usr/local/bin'
     when: helm_install_result.rc == 0
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
 - name: Open firewall ports
   ansible.posix.firewalld:
