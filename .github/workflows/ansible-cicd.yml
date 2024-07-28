@@ -51,7 +51,7 @@ jobs:
       - name: Git clone extra repo
         shell: bash
         run: |
-          git clone https://$GIT_USER:$GIT_PASSWORD@github.com/$GIT_USER/$GIT_REPO.git k8s
+          git clone --depth=1 https://$GIT_USER:$GIT_PASSWORD@github.com/$GIT_USER/$GIT_REPO.git k8s
 
       - name: Set host and secret values
         if: success() || failure()
