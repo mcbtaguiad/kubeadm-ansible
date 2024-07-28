@@ -395,7 +395,6 @@
   - description: kubelet - all nodes
     port: 10250:10259
     proto: tcp
-    zone: public
   - description: kubelet - nodeport
     port: 30000:32767
     proto: tcp

@@ -7,7 +7,107 @@
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
     MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
   tasks:
-  # - name: Install Longhorn
+  
+# ============================================================================ #
+  - name: Install Argocd
+    block:
+    - name: Create Argocd NS
+      ansible.builtin.shell: |-
+        kubectl --kubeconfig /etc/kubernetes/admin.conf create ns argocd 2>/dev/null
+      ignore_errors: yes
+    - name: Install Argocd
+      ansible.builtin.shell: |-
+        kubectl apply \
+          --kubeconfig /etc/kubernetes/admin.conf \
+          -f https://raw.githubusercontent.com/argoproj/argo-cd/master/manifests/install.yaml \
+          -n argocd
+    - name: Install Argocd CRs
+      ansible.builtin.shell: |-
+        kubectl apply \
+          --kubeconfig /etc/kubernetes/admin.conf \
+          -k https://github.com/argoproj/argo-cd/manifests/crds\?ref\=stable \
+          -n argocd
+    - name: Pause for 2 minutes
+      ansible.builtin.pause:
+        minutes: 2
+    - name: Change Admin Password
+      ansible.builtin.shell: |-
+        initial_password=$(kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd \
+          get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+          argocd account update-password --account admin --current-password $initial_password --new-password $K8S_PASSWORD --insecure'
+        kubectl exec deployment/argocd-server -n argocd -- bash -c "argocd login  argocd-server --insecure \
+          --username admin --password $initial_password && \
+          argocd account update-password --account admin --current-password $initial_password \
+          --new-password $K8S_PASSWORD --insecure"
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Install Metallb
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/metallb.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Kubernetes-Dashboard
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Metric-Server
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/metric-server.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Kube-state-metrics
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Ingress-nginx
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/ingress-nginx.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Cert-manager
+    block:
+    - name: Install Cert-manager helm
+      ansible.builtin.shell: |-
+        kubectl apply \
+          --kubeconfig /etc/kubernetes/admin.conf \
+          -f /ansible/k8s/argocd/core/cert-manager \
+          -n argocd
+    - name: Install Cert-manager cluster-issuer
+      ansible.builtin.shell: |-
+        kubectl apply \
+          --kubeconfig /etc/kubernetes/admin.conf \
+          -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer \
+          -n argocd
+# ============================================================================ #
+  - name: Install Longhorn
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/longhorn.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Longhorn
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/ingress.yaml \
+        -n argocd
+# ============================================================================ #
+
+# ============================================================================ #
+# - name: Install Longhorn
   #   block:
   #   - name: Add repo Longhorn
   #     kubernetes.core.helm_repository:
@@ -43,35 +143,21 @@
   #       create_namespace: true
   #       kubeconfig: /etc/kubernetes/admin.conf
   #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Install Argocd
-    block:
-    - name: Create Argocd NS
-      ansible.builtin.shell: |-
-        kubectl --kubeconfig /etc/kubernetes/admin.conf create ns argocd 2>/dev/null
-      ignore_errors: yes
-    - name: Install Argocd
-      ansible.builtin.shell: |-
-        kubectl apply \
-          --kubeconfig /etc/kubernetes/admin.conf \
-          -k https://github.com/argoproj/argo-cd/manifests/crds\?ref\=stable \
-          -n argocd
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Install Kubernetes Dashboard
-    block:
-    - name: Add repo Kubernetes Dashboard
-      kubernetes.core.helm_repository:
-        name: kubernetes-dashboard
-        repo_url: "https://kubernetes.github.io/dashboard/"
-    - name: Install Kubernetes Dashboard
-      kubernetes.core.helm:
-        name: kubernetes-dashboard
-        chart_ref: kubernetes-dashboard/kubernetes-dashboard
-        release_namespace: kubernetes-dashboard
-        create_namespace: true
-        kubeconfig: /etc/kubernetes/admin.conf
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Install Kubernetes Dashboard
+  #   block:
+  #   - name: Add repo Kubernetes Dashboard
+  #     kubernetes.core.helm_repository:
+  #       name: kubernetes-dashboard
+  #       repo_url: "https://kubernetes.github.io/dashboard/"
+  #   - name: Install Kubernetes Dashboard
+  #     kubernetes.core.helm:
+  #       name: kubernetes-dashboard
+  #       chart_ref: kubernetes-dashboard/kubernetes-dashboard
+  #       release_namespace: kubernetes-dashboard
+  #       create_namespace: true
+  #       kubeconfig: /etc/kubernetes/admin.conf
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
   # ============================================================================ #
   # - name: Install Ingress-nginx
   #   block:
@@ -107,40 +193,33 @@
   #       #   webhook.extraArgs: "{--feature-gates=AdditionalCertificateOutputFormats=true}"
   #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
   # ============================================================================ #
-  - name: Install Metric-server
-    block:
-    - name: Add repo Metric-server
-      kubernetes.core.helm_repository:
-        name: metrics-server
-        repo_url: "https://kubernetes-sigs.github.io/metrics-server/"
-    - name: Install Metric-server
-      kubernetes.core.helm:
-        name: ingress-nginx
-        chart_ref: metrics-server/metrics-server
-        release_namespace: kube-system
-        create_namespace: true
-        kubeconfig: /etc/kubernetes/admin.conf
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Install kube-state-metrics
-    block:
-    - name: Add repo kube-state-metrics
-      kubernetes.core.helm_repository:
-        name: prometheus-community
-        repo_url: "https://prometheus-community.github.io/helm-charts"
-    - name: Install kube-state-metrics
-      kubernetes.core.helm:
-        name: kube-state-metrics
-        chart_ref: prometheus-community/kube-state-metrics
-        release_namespace: kube-system
-        create_namespace: true
-        kubeconfig: /etc/kubernetes/admin.conf
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Fetch kubeconfig file
-    ansible.builtin.fetch:
-      src: /etc/kubernetes/admin.conf
-      dest: ../admin.conf
-      flat: yes
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
+  # - name: Install Metric-server
+  #   block:
+  #   - name: Add repo Metric-server
+  #     kubernetes.core.helm_repository:
+  #       name: metrics-server
+  #       repo_url: "https://kubernetes-sigs.github.io/metrics-server/"
+  #   - name: Install Metric-server
+  #     kubernetes.core.helm:
+  #       name: ingress-nginx
+  #       chart_ref: metrics-server/metrics-server
+  #       release_namespace: kube-system
+  #       create_namespace: true
+  #       kubeconfig: /etc/kubernetes/admin.conf
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Install kube-state-metrics
+  #   block:
+  #   - name: Add repo kube-state-metrics
+  #     kubernetes.core.helm_repository:
+  #       name: prometheus-community
+  #       repo_url: "https://prometheus-community.github.io/helm-charts"
+  #   - name: Install kube-state-metrics
+  #     kubernetes.core.helm:
+  #       name: kube-state-metrics
+  #       chart_ref: prometheus-community/kube-state-metrics
+  #       release_namespace: kube-system
+  #       create_namespace: true
+  #       kubeconfig: /etc/kubernetes/admin.conf
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
