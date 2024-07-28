@@ -43,7 +43,7 @@ jobs:
       #   - 80
       volumes:
         - ${{ github.workspace }}:/ansible
-        - ${{ github.workspace }}/k8s:/ansible/k8s
+        # - ${{ github.workspace }}/k8s:/ansible/k8s
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
