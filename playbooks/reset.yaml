@@ -34,7 +34,7 @@
       state: absent
     with_items:
     - iscsi_tcp
-    - br_netfilter
+    # - br_netfilter
 # ============================================================================ #
   # - name: Set net.ipv4.ip_forward
   # ansible.posix.sysctl:
@@ -95,6 +95,9 @@
     - /etc/iscsi/initiatorname.iscsi
     - /etc/sysctl.d/99-kubernetes-cri.conf
     - /usr/local/bin/helm
+    - /etc/kubernetes/kubeadm_config.yaml
+    - /var/lib/kubelet/config.yaml
+    - /etc/kubernetes/pki/ca.crt
     when: ansible_os_family == 'RedHat'
 
   - name: Remove file (delete file)
@@ -105,6 +108,9 @@
     - /etc/apt/sources.list.d/kubernetes.list
     - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
     - /usr/local/bin/helm
+    - /etc/kubernetes/kubeadm_config.yaml
+    - /var/lib/kubelet/config.yaml
+    - /etc/kubernetes/pki/ca.crt
     when: ansible_os_family == 'Debian'
 # ============================================================================ #
   - name: Update apt cache
@@ -168,7 +174,10 @@
         state: present
     - name: Enable swap
       ansible.builtin.shell: swapon -a
-    ignore_errors: True
+    ignore_errors: yes
+# ============================================================================ #
+  - name: Get details about installed packages
+    ansible.builtin.package_facts:
 # ============================================================================ #
   - name: Close firewall ports
     ansible.posix.firewalld:
@@ -248,7 +257,9 @@
       proto: tcp
       state: disabled
       zone: public
-    when: ansible_os_family == 'RedHat'
+    ignore_errors: yes
+    when:
+    - (ansible_os_family == 'RedHat') and (firewalld in ansible_facts.packages)
 # ============================================================================ #
   - name: Close firewall ports
     community.general.ufw:
@@ -299,8 +310,10 @@
       port: 8443
       proto: tcp
       zone: public
-    when: ansible_os_family == 'Debian'
+    ignore_errors: yes
+    when:
+    - (ansible_os_family == 'Debian') and (ufw in ansible_facts.packages)
 # ============================================================================ #
-  - name: Reboot machine
-    ansible.builtin.reboot:
-      msg: "Rebooting machine in 5 seconds"
+#  - name: Reboot machine
+#    ansible.builtin.reboot:
+#      msg: "Rebooting machine in 5 seconds"

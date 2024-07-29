@@ -5,7 +5,6 @@
   become: true
   vars:
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
-    MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
   tasks:
   - ansible.builtin.import_tasks: ../tasks/k8s_prerequisites.yaml
 # ============================================================================ #
@@ -16,13 +15,11 @@
     register: join_commands
     shell: |-
       kubeadm reset -f &&
-      rm -rf ${HOME}/.kube/config &&
-      kubeadm init  --pod-network-cidr=192.168.0.0/16 --v=5 \
-        # --config=/etc/kubernetes/kubeadm_config.yaml \
-        # --upload-certs \
-        # &&
-  # - debug: var=join_commands
-  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+      kubeadm init --v=5 \
+        --config=/etc/kubernetes/kubeadm_config.yaml \
+        --upload-certs \
+        &&
+      true
 # ============================================================================ #
   # - debug: var=join_commands
   - name: Retrieve join commands
