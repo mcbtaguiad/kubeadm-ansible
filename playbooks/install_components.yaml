@@ -50,6 +50,16 @@
       ignore_errors: yes
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
+   - name: Wait until argo instances are running
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: argocd
+      register: pod_list
+      until: pod_list|json_query('resources[*].status.phase')|unique == ["Running"]
+      # The wait time depends on the number of replicas
+      retries: 10
+      delay: 5
+# ============================================================================ #
   - name: Add Repo
     ansible.builtin.shell: |-
       kubectl apply \
@@ -77,13 +87,13 @@
       ansible.builtin.shell: |-
         kubectl apply \
           --kubeconfig /etc/kubernetes/admin.conf \
-          -f /ansible/k8s/argocd/core/cert-manager \
+          -f /ansible/k8s/argocd/core/cert-manager.yaml \
           -n argocd
   - name: Install Cert-manager cluster-issuer
     ansible.builtin.shell: |-
       kubectl apply \
         --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer \
+        -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer.yaml \
         -n argocd
 # ============================================================================ #
   - name: Install Kubernetes-Dashboard
