@@ -6,18 +6,18 @@
 all:
   hosts:
     master1:
-      ansible_ssh_host: 107.174.172.141
+      ansible_ssh_host: MASTER1_IP
     worker1:
-      ansible_ssh_host: 46.250.227.118
+      ansible_ssh_host: WORKER1_IP
     # worker2:
     #   ansible_ssh_host: WORKER2_IP
 master:
   hosts:
     master1:
-      ansible_ssh_host: 107.174.172.141
+      ansible_ssh_host: MASTER1_IP
 worker:
   hosts:
     worker1:
-      ansible_ssh_host: 46.250.227.118
+      ansible_ssh_host: WORKER1_IP
 #     # worker2:
 #     #   ansible_ssh_host: WORKER2_IP

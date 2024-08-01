@@ -50,14 +50,14 @@
       ignore_errors: yes
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
-  - name: Wait until argo instances are running
-    kubernetes.core.k8s_info:
-      kind: Pod
-      namespace: argocd
-    register: pod_list
-    until: pod_list|json_query('resources[*].status.phase')|unique == ["Running"]
-    retries: 10
-    delay: 5
+  # - name: Wait until argo instances are running
+  #   kubernetes.core.k8s_info:
+  #     kind: Pod
+  #     namespace: argocd
+  #   register: pod_list
+  #   until: pod_list|json_query('resources[*].status.phase')|unique == ["Running"]
+  #   retries: 10
+  #   delay: 5
 # ============================================================================ #
   - name: Add Repo
     ansible.builtin.shell: |-
