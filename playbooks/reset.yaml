@@ -319,6 +319,6 @@
     when:
     - (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
 # ============================================================================ #
- - name: Reboot machine
-   ansible.builtin.reboot:
-     msg: "Rebooting machine in 5 seconds"
+  - name: Reboot machine
+    ansible.builtin.reboot:
+      msg: "Rebooting machine in 5 seconds"
