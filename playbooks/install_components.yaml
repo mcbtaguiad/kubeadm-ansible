@@ -9,6 +9,16 @@
   tasks:
   
 # ============================================================================ #
+  - name: Copy config files
+    copy:
+      src: ../{{ item }}
+      dest: /ansible/{{ item }}
+      owner: root
+      group: root
+      mode: a-rwx,u+r
+    with_items:
+    - k8s
+# ============================================================================ #
   - name: Install Argocd
     block:
     - name: Create Argocd NS
@@ -69,27 +79,27 @@
         -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
         -n argocd
 # ============================================================================ #
-  - name: Install Ingress-nginx
-    ansible.builtin.shell: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/core/ingress-nginx.yaml \
-        -n argocd
+#  - name: Install Ingress-nginx
+#    ansible.builtin.shell: |-
+#      kubectl apply \
+#        --kubeconfig /etc/kubernetes/admin.conf \
+#        -f /ansible/k8s/argocd/core/ingress-nginx.yaml \
+#        -n argocd
 # ============================================================================ #
-  - name: Install Cert-manager
-    block:
-    - name: Install Cert-manager helm
-      ansible.builtin.shell: |-
-        kubectl apply \
-          --kubeconfig /etc/kubernetes/admin.conf \
-          -f /ansible/k8s/argocd/core/cert-manager \
-          -n argocd
-    - name: Install Cert-manager cluster-issuer
-      ansible.builtin.shell: |-
-        kubectl apply \
-          --kubeconfig /etc/kubernetes/admin.conf \
-          -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer \
-          -n argocd
+#  - name: Install Cert-manager
+#    block:
+#    - name: Install Cert-manager helm
+#      ansible.builtin.shell: |-
+#        kubectl apply \
+#          --kubeconfig /etc/kubernetes/admin.conf \
+#          -f /ansible/k8s/argocd/core/cert-manager \
+#          -n argocd
+#    - name: Install Cert-manager cluster-issuer
+#      ansible.builtin.shell: |-
+#        kubectl apply \
+#          --kubeconfig /etc/kubernetes/admin.conf \
+#          -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer \
+#          -n argocd
 # ============================================================================ #
   - name: Install Longhorn
     ansible.builtin.shell: |-

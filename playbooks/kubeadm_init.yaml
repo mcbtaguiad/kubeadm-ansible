@@ -15,10 +15,11 @@
     register: join_commands
     shell: |-
       kubeadm reset -f &&
-      kubeadm init --v=5 \
-        --config=/etc/kubernetes/kubeadm_config.yaml \
-        --upload-certs \
-        &&
+      #kubeadm init --v=5 \
+      #  --config=/etc/kubernetes/kubeadm_config.yaml \
+      #  --upload-certs \
+      #  &&
+      kubeadm init --v=5 --pod-network-cidr=192.168.0.0/16 --service-cidr=192.169.0.0/16 --upload-certs --control-plane-endpoint {{ ansible_ssh_host }}
       true
 # ============================================================================ #
   # - debug: var=join_commands
@@ -73,6 +74,17 @@
     when: inventory_hostname != hostvars[inventory_hostname].groups.all[0]
   #   register: join_cp_output
   # - debug: var=join_cp_output
+# ============================================================================ #
+  - name: Copy kubelet env config
+    copy:
+      dest: "/var/lib/kubelet/kubeadm-flags.env"
+      content: |
+        KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9 --node-ip {{ ansible_ssh_host }}"
+# ============================================================================ #
+  - name: Restart service kubelet
+    ansible.builtin.service:
+      name: kubelet
+      state: restarted
 # ============================================================================ #
   - name: Install Calico CNI plugin
     command: |-

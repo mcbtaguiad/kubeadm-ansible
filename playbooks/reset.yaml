@@ -96,8 +96,9 @@
     - /etc/sysctl.d/99-kubernetes-cri.conf
     - /usr/local/bin/helm
     - /etc/kubernetes/kubeadm_config.yaml
-    - /var/lib/kubelet/config.yaml
+    # - /var/lib/kubelet/config.yaml
     - /etc/kubernetes/pki/ca.crt
+    - /var/lib/kubelet/kubeadm-flags.env
     when: ansible_os_family == 'RedHat'
 
   - name: Remove file (delete file)
@@ -124,13 +125,13 @@
       path: /opt/cni/bin/
       state: absent
 # ============================================================================ #
-  - name: Remove hostname to /etc/hosts
+  - name: Remove IP address of all hosts to all hosts
     lineinfile:
       dest: /etc/hosts
       regexp: '.*{{ item }}$'
-      line: '{{ hostvars[item].ansible_default_ipv4.address }} {{item}}'
+      line: "{{ hostvars[item].ansible_ssh_host }}        {{ hostvars[item].ansible_hostname }}"
       state: absent
-    with_items: '{{ groups["all"] }}'
+    with_items: "{{ groups.all }}"
 # ============================================================================ #
   - name:
     block:
@@ -148,12 +149,12 @@
           state: absent
       when: ansible_os_family == 'Debian'
 # ============================================================================ #
-  - name: Unount Swap
+  - name: Unmount Swap
     block:
     - name: Get swap disk
       shell: |-
         fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
-      register: SWAP_DISK
+      register: SWAP_UUID
       when: ansible_os_family == 'RedHat'
     - name: Get swap disk
       shell: |-
@@ -164,16 +165,18 @@
       shell: |-
         blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
       register: SWAP_UUID
-      when: ansible_os_family == 'Debian'
-    - name: Mount swap
+      when: (ansible_os_family == 'Debian') and (SWAP_DISK is defined)
+    - name: Mount swap 
       mount:
         src: "{{SWAP_UUID.stdout}}"
         path: swap
         fstype: swap
         opts: defaults
         state: present
+      when: SWAP_UUID is defined
     - name: Enable swap
       ansible.builtin.shell: swapon -a
+      when: SWAP_UUID is defined
     ignore_errors: yes
 # ============================================================================ #
   - name: Get details about installed packages
@@ -259,7 +262,7 @@
       zone: public
     ignore_errors: yes
     when:
-    - (ansible_os_family == 'RedHat') and (firewalld in ansible_facts.packages)
+    - (ansible_os_family == 'RedHat') and ('firewalld' in ansible_facts.packages)
 # ============================================================================ #
   - name: Close firewall ports
     community.general.ufw:
@@ -312,7 +315,7 @@
       zone: public
     ignore_errors: yes
     when:
-    - (ansible_os_family == 'Debian') and (ufw in ansible_facts.packages)
+    - (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
 # ============================================================================ #
 #  - name: Reboot machine
 #    ansible.builtin.reboot:

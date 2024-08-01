@@ -15,60 +15,21 @@
   - /opt/cni/bin
   - /var/lib/kubelet
   - /etc/kubernetes/pki
+  - /ansible/k8s
 # ============================================================================ #
-- name: Add hostname to /etc/hosts
+- name: Add IP address of all hosts to all hosts
   lineinfile:
-    path: /etc/hosts
-    line: "{{ ansible_ssh_host }} {{ inventory_hostname }} {{ ansible_hostname }}"
-    create: yes
-# ============================================================================ #
-- name: Copy kubelet config
-  copy:
-    dest: "/var/lib/kubelet/config.yaml"
-    content: |
-      apiVersion: kubelet.config.k8s.io/v1beta1
-      authentication:
-        anonymous:
-          enabled: false
-        webhook:
-          cacheTTL: 0s
-          enabled: true
-        x509:
-          clientCAFile: /etc/kubernetes/pki/ca.crt
-      authorization:
-        mode: Webhook
-        webhook:
-          cacheAuthorizedTTL: 0s
-          cacheUnauthorizedTTL: 0s
-      cgroupDriver: systemd
-      clusterDNS:
-      - 10.96.0.10
-      clusterDomain: cluster.local
-      cpuManagerReconcilePeriod: 0s
-      evictionPressureTransitionPeriod: 0s
-      fileCheckFrequency: 0s
-      healthzBindAddress: 127.0.0.1
-      healthzPort: 10248
-      httpCheckFrequency: 0s
-      imageMinimumGCAge: 0s
-      kind: KubeletConfiguration
-      logging:
-        flushFrequency: 0
-        options:
-          json:
-            infoBufferSize: "0"
-        verbosity: 0
-      memorySwap: {}
-      nodeStatusReportFrequency: 0s
-      nodeStatusUpdateFrequency: 0s
-      rotateCertificates: true
-      runtimeRequestTimeout: 0s
-      shutdownGracePeriod: 0s
-      shutdownGracePeriodCriticalPods: 0s
-      staticPodPath: /etc/kubernetes/manifests
-      streamingConnectionIdleTimeout: 0s
-      syncFrequency: 0s
-      volumeStatsAggPeriod: 0s
+    dest: /etc/hosts
+    regexp: '.*{{ item }}$'
+    line: "{{ hostvars[item].ansible_ssh_host }}	{{ hostvars[item].ansible_hostname }}"
+    state: present
+  #when: hostvars[item].ansible_host is defined
+  with_items: "{{ groups.all }}"
+#- name: Copy kubelet env config
+#  copy:
+#    dest: "/var/lib/kubelet/kubeadm-flags.env"
+#    content: |
+#      KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9 --node-ip {{ ansible_ssh_host }}"
 # ============================================================================ #
 - name: Copy kubeadm config
   copy:
@@ -84,7 +45,7 @@
           apiserver-count: "{{HOST_COUNT}}"
       controlPlaneEndpoint: {{ ansible_ssh_host }}:6443 
       networking:
-        podSubnet: 10.30.0.0/24
+        podSubnet: 192.168.0.0/16
   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
 - name: Copy kubernetes CA
@@ -302,7 +263,7 @@
     shell: |-
       blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
     register: SWAP_UUID
-    when: ansible_os_family == 'Debian'
+    when: (ansible_os_family == 'Debian') and (SWAP_DISK is defined)
   - name: Unmount swap
     mount:
       src: "{{SWAP_UUID.stdout}}"
@@ -310,9 +271,10 @@
       fstype: swap
       opts: defaults
       state: absent
+    when: SWAP_UUID is defined
   - name: Disable swap
     ansible.builtin.shell: swapoff -a
-    when: ansible_swaptotal_mb > 0
+    when: (ansible_swaptotal_mb > 0) or (SWAP_UUID is defined)
   ignore_errors: yes
 # ============================================================================ #
 - name: Add Kubernetes repository
