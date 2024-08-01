@@ -64,27 +64,6 @@
         -f /ansible/k8s/argocd/core/metallb.yaml \
         -n argocd
 # ============================================================================ #
-  - name: Install Kubernetes-Dashboard
-    ansible.builtin.shell: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
-        -n argocd
-# ============================================================================ #
-  - name: Install Metric-Server
-    ansible.builtin.shell: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/core/metric-server.yaml \
-        -n argocd
-# ============================================================================ #
-  - name: Install Kube-state-metrics
-    ansible.builtin.shell: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
-        -n argocd
-# ============================================================================ #
   - name: Install Ingress-nginx
     ansible.builtin.shell: |-
       kubectl apply \
@@ -105,6 +84,27 @@
       kubectl apply \
         --kubeconfig /etc/kubernetes/admin.conf \
         -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer \
+        -n argocd
+# ============================================================================ #
+  - name: Install Kubernetes-Dashboard
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Metric-Server
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/metric-server.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Kube-state-metrics
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
         -n argocd
 # ============================================================================ #
   - name: Install Longhorn
