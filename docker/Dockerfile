@@ -1,7 +1,7 @@
 FROM docker.io/python:3.9.19-bookworm
 
 LABEL Maintainer="Mark Taguiad <marktaguiad@tagsdev.xyz>"
-LABEL Description="Ansible Alpine"
+LABEL Description="Ansible Debian"
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /ansible
 
 RUN pip install --upgrade pip
-RUN pip install ansible ansible-core argcomplete 
+RUN pip install ansible ansible-core argcomplete jmespath
 
 RUN apt update -y && \
     apt install -y sshpass git tree
