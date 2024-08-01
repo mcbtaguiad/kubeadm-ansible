@@ -9,3 +9,4 @@ services:
       restart: always
       volumes:
       - "./:/ansible"
+      - "~/.ssh/:/root/.ssh"

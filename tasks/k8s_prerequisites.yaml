@@ -435,9 +435,7 @@
     state: enabled
     zone: public
   ignore_errors: yes
-  when: 
-  - ansible_os_family == 'RedHat'
-  - firewalld in ansible_facts.packages
+  when: (ansible_os_family == 'RedHat') and ('firewalld' in ansible_facts.packages)
 # ============================================================================ #
 - name: Open firewall ports
   community.general.ufw:
@@ -489,7 +487,5 @@
     port: 8443
     proto: tcp
   ignore_errors: yes
-  when:
-  - ansible_os_family == 'Debian'
-  - ufw in ansible_facts.packages
+  when: (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
 # ============================================================================ #

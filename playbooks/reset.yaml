@@ -34,7 +34,7 @@
       state: absent
     with_items:
     - iscsi_tcp
-    # - br_netfilter
+    - br_netfilter
 # ============================================================================ #
   # - name: Set net.ipv4.ip_forward
   # ansible.posix.sysctl:
@@ -99,6 +99,7 @@
     # - /var/lib/kubelet/config.yaml
     - /etc/kubernetes/pki/ca.crt
     - /var/lib/kubelet/kubeadm-flags.env
+    - /ansible/
     when: ansible_os_family == 'RedHat'
 
   - name: Remove file (delete file)
@@ -112,6 +113,7 @@
     - /etc/kubernetes/kubeadm_config.yaml
     - /var/lib/kubelet/config.yaml
     - /etc/kubernetes/pki/ca.crt
+    - /ansible/
     when: ansible_os_family == 'Debian'
 # ============================================================================ #
   - name: Update apt cache

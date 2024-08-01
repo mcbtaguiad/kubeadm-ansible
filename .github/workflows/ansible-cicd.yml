@@ -28,6 +28,7 @@ env:
   GIT_USER: ${{ vars.GIT_USER }}
   GIT_PASSWORD: ${{ secrets.GIT_PASSWORD }}
   GIT_REPO: ${{ vars.GIT_REPO }}
+  PRIV_KEY: ${{ secrets.PRIV_KEY }}
 
 jobs:
   ansible-playbook:

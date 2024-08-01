@@ -7,11 +7,12 @@
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
     MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
   tasks:
+  
 # ============================================================================ #
   - name: Copy config files
     copy:
       src: ../{{ item }}
-      dest: /ansible/
+      dest: /ansible/{{ item }}
       owner: root
       group: root
       mode: a-rwx,u+r
@@ -50,13 +51,6 @@
       ignore_errors: yes
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
-  - name: Add Repo
-    ansible.builtin.shell: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/git-repo/git-tagsdev-k8s.yaml \
-        -n argocd
-# ============================================================================ #
   - name: Install Metallb
     ansible.builtin.shell: |-
       kubectl apply \
@@ -85,27 +79,27 @@
         -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
         -n argocd
 # ============================================================================ #
-  - name: Install Ingress-nginx
-    ansible.builtin.shell: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/core/ingress-nginx.yaml \
-        -n argocd
+#  - name: Install Ingress-nginx
+#    ansible.builtin.shell: |-
+#      kubectl apply \
+#        --kubeconfig /etc/kubernetes/admin.conf \
+#        -f /ansible/k8s/argocd/core/ingress-nginx.yaml \
+#        -n argocd
 # ============================================================================ #
-  - name: Install Cert-manager
-    block:
-    - name: Install Cert-manager helm
-      ansible.builtin.shell: |-
-        kubectl apply \
-          --kubeconfig /etc/kubernetes/admin.conf \
-          -f /ansible/k8s/argocd/core/cert-manager \
-          -n argocd
-  - name: Install Cert-manager cluster-issuer
-    ansible.builtin.shell: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer \
-        -n argocd
+#  - name: Install Cert-manager
+#    block:
+#    - name: Install Cert-manager helm
+#      ansible.builtin.shell: |-
+#        kubectl apply \
+#          --kubeconfig /etc/kubernetes/admin.conf \
+#          -f /ansible/k8s/argocd/core/cert-manager \
+#          -n argocd
+#    - name: Install Cert-manager cluster-issuer
+#      ansible.builtin.shell: |-
+#        kubectl apply \
+#          --kubeconfig /etc/kubernetes/admin.conf \
+#          -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer \
+#          -n argocd
 # ============================================================================ #
   - name: Install Longhorn
     ansible.builtin.shell: |-
