@@ -61,22 +61,23 @@ jobs:
           sed -i "s/MASTER1_IP/$MASTER1_IP/g" /ansible/inventory/host.yaml
           sed -i "s/WORKER1_IP/$WORKER1_IP/g" /ansible/inventory/host.yaml
           sed -i "s/SERVER_PASSWORD/$SERVER_PASSWORD/g" /ansible/inventory/group_vars/all.yaml
+          sed -i "s/K8S_PASSWORD/$K8S_PASSWORD/g" /ansible/playbooks/install_components.yaml
 
-      - name: Reset K8S Cluster
-        if: success() || failure()
-        shell: bash
-        run: |
-          ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
+      # - name: Reset K8S Cluster
+      #   if: success() || failure()
+      #   shell: bash
+      #   run: |
+      #     ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
         
-      - name: Sleep for 3 minutes, waiting for server to start
-        run: sleep 180s
-        shell: bash
+      # - name: Sleep for 3 minutes, waiting for server to start
+      #   run: sleep 180s
+      #   shell: bash
 
-      - name: Init Cluster
-        if: success() || failure()
-        shell: bash
-        run: |
-          ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
+      # - name: Init Cluster
+      #   if: success() || failure()
+      #   shell: bash
+      #   run: |
+      #     ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
       
       - name: Install Components
         if: success() || failure()

@@ -8,15 +8,15 @@
     MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
   tasks:
 # ============================================================================ #
-  - name: Copy config files
-    copy:
-      src: ../{{ item }}
-      dest: /ansible/
-      owner: root
-      group: root
-      mode: a-rwx,u+r
-    with_items:
-    - k8s
+  # - name: Copy config files
+  #   copy:
+  #     src: ../{{ item }}
+  #     dest: /ansible/
+  #     owner: root
+  #     group: root
+  #     mode: a-rwx,u+r
+  #   with_items:
+  #   - k8s
 # ============================================================================ #
   - name: Install Argocd
     block:
@@ -46,7 +46,7 @@
         kubectl --kubeconfig /etc/kubernetes/admin.conf exec deployment/argocd-server -n argocd -- bash -c "argocd login  argocd-server --insecure \
           --username admin --password $initial_password && \
           argocd account update-password --account admin --current-password $initial_password \
-          --new-password $K8S_PASSWORD --insecure"
+          --new-password K8S_PASSWORD --insecure"
       ignore_errors: yes
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
@@ -114,7 +114,7 @@
         -f /ansible/k8s/argocd/core/longhorn.yaml \
         -n argocd
 # ============================================================================ #
-  - name: Install Longhorn
+  - name: Install Argocd ingress
     ansible.builtin.shell: |-
       kubectl apply \
         --kubeconfig /etc/kubernetes/admin.conf \

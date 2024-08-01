@@ -99,7 +99,7 @@
     # - /var/lib/kubelet/config.yaml
     - /etc/kubernetes/pki/ca.crt
     - /var/lib/kubelet/kubeadm-flags.env
-    - /ansible/
+    # - /ansible/
     when: ansible_os_family == 'RedHat'
 
   - name: Remove file (delete file)
@@ -113,7 +113,7 @@
     - /etc/kubernetes/kubeadm_config.yaml
     - /var/lib/kubelet/config.yaml
     - /etc/kubernetes/pki/ca.crt
-    - /ansible/
+    # - /ansible/
     when: ansible_os_family == 'Debian'
 # ============================================================================ #
   - name: Update apt cache
