@@ -9,24 +9,24 @@
   - ansible.builtin.import_tasks: ../tasks/k3s_prerequisites.yaml
 # ============================================================================ #
   - name: Init first cluster member
-      # Run this only on the first node in the inventory
-      when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-      changed_when: false
-      shell: |-
-        curl -sfL https://get.k3s.io | K3S_TOKEN="Thefinalshowdown1!" sh -s \ 
-        server --server https://{{ MASTER_IP }}:6443 --disable traefik \
-        --flannel-backend=none --disable-network-policy
+    # Run this only on the first node in the inventory
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    changed_when: false
+    shell: |-
+      curl -sfL https://get.k3s.io | K3S_TOKEN="Thefinalshowdown1!" sh -s \ 
+      server --server https://{{ MASTER_IP }}:6443 --disable traefik \
+      --flannel-backend=none --disable-network-policy
   - name: Get token
-      # Run this only on the first node in the inventory
-      when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-      register: TOKEN
-      shell: |-
-        cat /var/lib/rancher/k3s/server/node-token
+    # Run this only on the first node in the inventory
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    register: TOKEN
+    shell: |-
+      cat /var/lib/rancher/k3s/server/node-token
   - name: Join member node
-      shell: |-
-        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent --server \
-        https://{{ MASTER_IP }}:6443 --token \
-        {{ TOKEN }}::server:Thefinalshowdown1!" sh -s -
+    shell: |-
+      curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent --server \
+      https://{{ MASTER_IP }}:6443 --token \
+      {{ TOKEN }}::server:Thefinalshowdown1!" sh -s -
 # ============================================================================ #
   - name: Install Calico CNI plugin
     command: |-
