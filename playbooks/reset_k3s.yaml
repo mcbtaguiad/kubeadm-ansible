@@ -9,11 +9,17 @@
 # ============================================================================ #
   tasks:
   - name: Reset/delete cluster
+    block:
     # Run this only on the first node in the inventory
-    changed_when: false
-    shell: |-
-      kubeadm reset -f
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    - name: Master
+      changed_when: false
+      shell: |-
+        /usr/local/bin/k3s-uninstall.sh
+      when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    - name: Node
+      changed_when: false
+      shell: |-
+        /usr/local/bin/k3s-agent-uninstall.sh
     ignore_errors: True
 # ============================================================================ #
   - name: Ensure nfs-server and iscsi is disabled
@@ -24,8 +30,6 @@
     with_items:
     - nfs-server
     - iscsi
-    - kubelet
-    - containerd
     ignore_errors: True
 # ============================================================================ #
   - name: Disable kernel module iscsi_tcp
@@ -35,28 +39,6 @@
     with_items:
     - iscsi_tcp
     - br_netfilter
-# ============================================================================ #
-  # - name: Set net.ipv4.ip_forward
-  # ansible.posix.sysctl:
-  #   name: net.ipv4.ip_forward
-  #   value: '1'
-  #   sysctl_set: true
-  #   state: absent
-  #   reload: true
-  # - name: Set net.bridge.bridge-nf-call-iptables
-  #   ansible.posix.sysctl:
-  #     name: net.bridge.bridge-nf-call-iptables
-  #     value: '1'
-  #     sysctl_set: true
-  #     state: absent
-  #     reload: true
-  # - name: Set net.bridge.bridge-nf-call-iptables
-  #   ansible.posix.sysctl:
-  #     name: net.bridge.bridge-nf-call-ip6tables
-  #     value: '1'
-  #     sysctl_set: true
-  #     state: absent
-  #     reload: true
 # ============================================================================ #
   - name: Remove installed packages
     package:
@@ -69,10 +51,6 @@
     # - nfs-utils
     - lvm2
     - containerd.io
-    - kubelet
-    - kubeadm
-    - kubectl
-    when: ansible_os_family == 'RedHat'
   - name: Remove installed packages
     ansible.builtin.apt:
       name: "{{ item }}"
@@ -81,45 +59,6 @@
     - open-iscsi
     - nfs-server
     # - ufw
-    - containerd
-    - kubelet
-    - kubeadm
-    - kubectl
-    when: ansible_os_family == 'Debian'
-# ============================================================================ #
-  - name: Remove file (delete file)
-    ansible.builtin.file:
-      path: "{{ item }}"
-      state: absent
-    with_items:
-    - /etc/iscsi/initiatorname.iscsi
-    - /etc/sysctl.d/99-kubernetes-cri.conf
-    - /usr/local/bin/helm
-    - /etc/kubernetes/kubeadm_config.yaml
-    # - /var/lib/kubelet/config.yaml
-    - /etc/kubernetes/pki/ca.crt
-    - /var/lib/kubelet/kubeadm-flags.env
-    # - /ansible/
-    when: ansible_os_family == 'RedHat'
-
-  - name: Remove file (delete file)
-    ansible.builtin.file:
-      path: "{{ item }}"
-      state: absent
-    with_items:
-    - /etc/apt/sources.list.d/kubernetes.list
-    - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    - /usr/local/bin/helm
-    - /etc/kubernetes/kubeadm_config.yaml
-    - /var/lib/kubelet/config.yaml
-    - /etc/kubernetes/pki/ca.crt
-    # - /ansible/
-    when: ansible_os_family == 'Debian'
-# ============================================================================ #
-  - name: Update apt cache
-    apt:
-      update_cache: yes
-    ignore_errors: yes
     when: ansible_os_family == 'Debian'
 # ============================================================================ #
   - name: Remove CNI plugijn
@@ -134,22 +73,6 @@
       line: "{{ hostvars[item].ansible_ssh_host }}        {{ hostvars[item].ansible_hostname }}"
       state: absent
     with_items: "{{ groups.all }}"
-# ============================================================================ #
-  - name:
-    block:
-    - name: Remove Kubernetes repository 
-      ansible.builtin.yum_repository:
-        name: Kubernetes
-        state: absent
-      when: ansible_os_family == 'RedHat'
-
-    - name: Add Kubernetes apt repository
-      block:
-      - name: kubernetes repo
-        ansible.builtin.apt_repository:
-          repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
-          state: absent
-      when: ansible_os_family == 'Debian'
 # ============================================================================ #
   - name: Unmount Swap
     block:

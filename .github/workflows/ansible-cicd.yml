@@ -1,22 +1,13 @@
 name: Kubeadm Ansible Playbook
 
-# on:
-#   push:
-#     branches: [ "main" ]
-#   pull_request:
-#     branches: [ "main" ]
-
-# on:
-#   workflow_dispatch:
-
 on:
   push:
-    branches: [ "test" ]
+    branches: [ "k3s-install" ]
     # Publish semver tags as releases.
     tags: [ 'v*' ]
-  pull_request:
-    branches: [ "test" ]
-    types: [closed]
+  # pull_request:
+  #   branches: [ "k3s-install" ]
+  #   types: [closed]
 
 
 env:
@@ -63,11 +54,11 @@ jobs:
           sed -i "s/SERVER_PASSWORD/$SERVER_PASSWORD/g" /ansible/inventory/group_vars/all.yaml
           sed -i "s/K8S_PASSWORD/$K8S_PASSWORD/g" /ansible/playbooks/install_components.yaml
 
-      - name: Reset K8S Cluster
+      - name: Reset K#S Cluster
         if: success() || failure()
         shell: bash
         run: |
-          ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
+          ansible-playbook /ansible/playbooks/reset_k3s.yaml -i /ansible/inventory/host.yaml
         
       - name: Sleep for 3 minutes, waiting for server to start
         run: sleep 180s
@@ -77,11 +68,10 @@ jobs:
         if: success() || failure()
         shell: bash
         run: |
-          ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
+          ansible-playbook /ansible/playbooks/k3s_install.yaml -i /ansible/inventory/host.yaml
       
       - name: Install Components
         if: success() || failure()
         shell: bash
         run: |
-          ansible-playbook /ansible/playbooks/install_components.yaml -i /ansible/inventory/host.yaml
-
+          ansible-playbook /ansible/playbooks/install_core.yaml -i /ansible/inventory/host.yaml

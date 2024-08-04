@@ -72,6 +72,12 @@
         --kubeconfig /etc/kubernetes/admin.conf \
         -f /ansible/k8s/argocd/core/metallb.yaml \
         -n argocd
+  - name: Install Metallb CRS
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f /ansible/k8s/argocd/core/metallb-crs.yaml \
+        -n argocd
 # ============================================================================ #
   - name: Install Ingress-nginx
     ansible.builtin.shell: |-
@@ -124,8 +130,8 @@
         -n argocd
 # ============================================================================ #
   - name: Pause for 2 minutes
-      ansible.builtin.pause:
-        minutes: 2
+    ansible.builtin.pause:
+      minutes: 2
 # ============================================================================ #
   - name: Install Argocd ingress
     ansible.builtin.shell: |-
