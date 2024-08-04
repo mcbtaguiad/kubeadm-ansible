@@ -3,6 +3,17 @@
 # ============================================================================ #
 ---
 # ============================================================================ #
+- name: Create dir paths
+  become: true
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: a-rwx,a+rx
+  with_items:
+  - /opt/cni/bin
+# ============================================================================ #
 - name: Add IP address of all hosts to all hosts
   lineinfile:
     dest: /etc/hosts
