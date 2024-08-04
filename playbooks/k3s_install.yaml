@@ -4,51 +4,57 @@
 - hosts: all
   become: true
   vars:
-    MASTER_IP: "{{ hostvars['master']['ansible_default_ipv4']['address'] }}"
+    MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
   tasks:
-  - ansible.builtin.import_tasks: ../tasks/k3s_prerequisites.yaml
+  # - ansible.builtin.import_tasks: ../tasks/k3s_prerequisites.yaml
 # ============================================================================ #
   - name: Init first cluster member
     # Run this only on the first node in the inventory
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     changed_when: false
     shell: |-
-      curl -sfL https://get.k3s.io | K3S_TOKEN="Thefinalshowdown1!" sh -s \ 
-      server --server https://{{ MASTER_IP }}:6443 --disable traefik \
-      --flannel-backend=none --disable-network-policy
+      curl -sfL https://get.k3s.io | sh -s - --disable traefik --flannel-backend=none --disable-network-policy
   - name: Get token
     # Run this only on the first node in the inventory
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     register: TOKEN
     shell: |-
       cat /var/lib/rancher/k3s/server/node-token
+  - name: Set facts
+    set_fact:
+      token_member={{ TOKEN.stdout }}
+    delegate_to: "{{ item }}"
+    with_items: "{{ ansible_play_batch }}"
+    run_once: yes
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
   - name: Join member node
     shell: |-
-      curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent --server \
-      https://{{ MASTER_IP }}:6443 --token \
-      {{ TOKEN }}::server:Thefinalshowdown1!" sh -s -
+      curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent --server https://{{ MASTER_IP }}:6443 --token {{ token_member }}" sh -s -
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[1]
 # ============================================================================ #
   - name: Install Calico CNI plugin
     command: |-
       kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
   - name: Untaint control plane nodes
     shell: |-
       kubectl \
-        --kubeconfig /etc/rancher/k3s/config.yaml \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         taint nodes --all \
         node-role.kubernetes.io/control-plane- \
         || true
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    ignore_errors: yes
 # ============================================================================ #
   - name: Wait for nodes to become ready
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     shell: |-
       kubectl \
-        --kubeconfig /etc/rancher/k3s/config.yaml \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         get nodes |
         awk '{print $2}' | tail -n +2 | uniq -c
     register: control_plane_ready
@@ -60,7 +66,7 @@
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     ansible.builtin.shell: |-
       kubectl \
-        --kubeconfig /etc/rancher/k3s/config.yaml \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         cluster-info
     register: cluster_info
   - debug: var=cluster_info.stdout
@@ -69,7 +75,7 @@
   - name: Label all node as worker
     shell: |-
       kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         label nodes --all \
         node-role.kubernetes.io/worker=true
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
@@ -77,30 +83,30 @@
   - name: Label nodes (manual label for now)
     shell: |-
       kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         label nodes malaya disk=ssd
       kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         label nodes marilag disk=ssd
       
       kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         label nodes malaya core=4
       kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         label nodes marilag core=3
 
       kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         label nodes malaya ram=8gb
       kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
         label nodes marilag ram=3.5gb
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
   - name: Fetch kubeconfig file
     ansible.builtin.fetch:
-      src: /etc/kubernetes/admin.conf
+      src: /etc/rancher/k3s/k3s.yaml
       dest: ../admin.conf
       flat: yes
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]

@@ -1,0 +1,148 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+- hosts: master
+  become: true
+  vars:
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
+    MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
+  tasks:
+# ============================================================================ #
+  # - name: Copy config files
+  #   copy:
+  #     src: ../{{ item }}
+  #     dest: /ansible/
+  #     owner: root
+  #     group: root
+  #     mode: a-rwx,u+r
+  #   with_items:
+  #   - k8s
+# ============================================================================ #
+  - name: Install Argocd
+    block:
+    - name: Create Argocd NS
+      ansible.builtin.shell: |-
+        kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml create ns argocd 2>/dev/null
+      ignore_errors: yes
+    - name: Install Argocd
+      ansible.builtin.shell: |-
+        kubectl apply \
+          --kubeconfig /etc/rancher/k3s/k3s.yaml \
+          -f https://raw.githubusercontent.com/argoproj/argo-cd/master/manifests/install.yaml \
+          -n argocd
+    - name: Install Argocd CRs
+      ansible.builtin.shell: |-
+        kubectl apply \
+          --kubeconfig /etc/rancher/k3s/k3s.yaml \
+          -k https://github.com/argoproj/argo-cd/manifests/crds\?ref\=stable \
+          -n argocd
+    - name: Pause for 2 minutes
+      ansible.builtin.pause:
+        minutes: 2
+    - name: Change Admin Password
+      ansible.builtin.shell: |-
+        initial_password=$(kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n argocd \
+          get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+        kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml exec deployment/argocd-server -n argocd -- bash -c "argocd login  argocd-server --insecure \
+          --username admin --password $initial_password && \
+          argocd account update-password --account admin --current-password $initial_password \
+          --new-password K8S_PASSWORD --insecure"
+      ignore_errors: yes
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Wait until argo instances are running
+  #   kubernetes.core.k8s_info:
+  #     kind: Pod
+  #     namespace: argocd
+  #   register: pod_list
+  #   until: pod_list|json_query('resources[*].status.phase')|unique == ["Running"]
+  #   retries: 10
+  #   delay: 5
+# ============================================================================ #
+  - name: Add Repo
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/git-repo/git-tagsdev-k8s.yaml \
+        -n argocd
+# ============================================================================ #
+  # - name: Install Metallb
+  #   ansible.builtin.shell: |-
+  #     kubectl apply \
+  #       --kubeconfig /etc/rancher/k3s/k3s.yaml \
+  #       -f /ansible/k8s/argocd/core/metallb.yaml \
+  #       -n argocd
+  # - name: Install Metallb CRS
+  #   ansible.builtin.shell: |-
+  #     kubectl apply \
+  #       --kubeconfig /etc/rancher/k3s/k3s.yaml \
+  #       -f /ansible/k8s/argocd/core/metallb-crs.yaml \
+  #       -n argocd
+# ============================================================================ #
+  - name: Install Ingress-nginx
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/core/ingress-nginx.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Cert-manager
+    block:
+    - name: Install Cert-manager helm
+      ansible.builtin.shell: |-
+        kubectl apply \
+          --kubeconfig /etc/rancher/k3s/k3s.yaml \
+          -f /ansible/k8s/argocd/core/cert-manager.yaml \
+          -n argocd
+  - name: Install Cert-manager cluster-issuer
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/core/cert-manager-cluster-issuer.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Kubernetes-Dashboard
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Metric-Server
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/core/metric-server.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Kube-state-metrics
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Install Longhorn
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/core/longhorn.yaml \
+        -n argocd
+  - name: Install Longhorn CRS
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/core/longhorn-crs.yaml \
+        -n argocd
+# ============================================================================ #
+  - name: Pause for 2 minutes
+    ansible.builtin.pause:
+      minutes: 2
+# ============================================================================ #
+  - name: Install Argocd ingress
+    ansible.builtin.shell: |-
+      kubectl apply \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        -f /ansible/k8s/argocd/ingress.yaml \
+        -n argocd
+# ============================================================================ #

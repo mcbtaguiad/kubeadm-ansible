@@ -434,6 +434,46 @@
     proto: tcp
     state: enabled
     zone: public
+  - description: mail 25
+    port: 25
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 465
+    port: 465
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 587
+    port: 587
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 993
+    port: 993
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 143
+    port: 143
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: dns 53 tcp
+    port: 53
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: dns 53 udp
+    port: 53
+    proto: udp
+    state: enabled
+    zone: public
+  - description: dns 67 udp
+    port: 67
+    proto: udp
+    state: enabled
+    zone: public
   ignore_errors: yes
   when: (ansible_os_family == 'RedHat') and ('firewalld' in ansible_facts.packages)
 # ============================================================================ #
@@ -486,6 +526,30 @@
   - description: ingress 8443
     port: 8443
     proto: tcp
+  - description: mail 25
+    port: 25
+    proto: tcp
+  - description: mail 465
+    port: 465
+    proto: tcp
+  - description: mail 587
+    port: 587
+    proto: tcp
+  - description: mail 993
+    port: 993
+    proto: tcp
+  - description: mail 143
+    port: 143
+    proto: tcp
+  - description: dns 53 tcp
+    port: 53
+    proto: tcp
+  - description: dns 53 udp
+    port: 53
+    proto: udp
+  - description: dns 67 udp
+    port: 67
+    proto: udp
   ignore_errors: yes
   when: (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
 # ============================================================================ #

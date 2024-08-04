@@ -52,7 +52,7 @@ jobs:
           sed -i "s/MASTER1_IP/$MASTER1_IP/g" /ansible/inventory/host.yaml
           sed -i "s/WORKER1_IP/$WORKER1_IP/g" /ansible/inventory/host.yaml
           sed -i "s/SERVER_PASSWORD/$SERVER_PASSWORD/g" /ansible/inventory/group_vars/all.yaml
-          sed -i "s/K8S_PASSWORD/$K8S_PASSWORD/g" /ansible/playbooks/install_core.yaml
+          sed -i "s/K8S_PASSWORD/$K8S_PASSWORD/g" /ansible/playbooks/install_core_k3s.yaml
 
       - name: Reset K3S Cluster
         if: success() || failure()
@@ -74,4 +74,4 @@ jobs:
         if: success() || failure()
         shell: bash
         run: |
-          ansible-playbook /ansible/playbooks/install_core.yaml -i /ansible/inventory/host.yaml
+          ansible-playbook /ansible/playbooks/install_core_k3s.yaml -i /ansible/inventory/host.yaml
