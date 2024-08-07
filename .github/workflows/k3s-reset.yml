@@ -2,7 +2,7 @@ name: Kubeadm Ansible Playbook
 
 on:
   push:
-    branches: [ "k3s-rest" ]
+    branches: [ "k3s-reset" ]
     # Publish semver tags as releases.
     tags: [ 'v*' ]
   # pull_request:
