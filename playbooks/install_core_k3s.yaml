@@ -119,7 +119,7 @@
     ansible.builtin.shell: |-
       kubectl apply \
         --kubeconfig /etc/rancher/k3s/k3s.yaml \
-        -f /ansible/k8s/argocd/core/kubenetes-dashboard.yaml \
+        -f /ansible/k8s/argocd/core/kube-state-metrics.yaml \
         -n argocd
 # ============================================================================ #
   - name: Install Longhorn
