@@ -132,6 +132,30 @@
         node-role.kubernetes.io/worker=true
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
+  - name: Label nodes (manual label for now)
+    shell: |-
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf  \
+        label nodes malaya disk=ssd
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf  \
+        label nodes marilag disk=ssd
+      
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf  \
+        label nodes malaya core=4
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf  \
+        label nodes marilag core=3
+
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf  \
+        label nodes malaya ram=8gb
+      kubectl \
+        --kubeconfig /etc/kubernetes/admin.conf  \
+        label nodes marilag ram=3.5gb
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
   - name: Fetch kubeconfig file
     ansible.builtin.fetch:
       src: /etc/kubernetes/admin.conf
