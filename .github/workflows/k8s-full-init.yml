@@ -1,0 +1,77 @@
+name: Kubeadm Ansible Playbook
+
+on:
+  push:
+    branches: [ "k8s-install" ]
+    # Publish semver tags as releases.
+    tags: [ 'v*' ]
+  # pull_request:
+  #   branches: [ "k3s-install" ]
+  #   types: [closed]
+
+
+env:
+  MASTER1_IP: ${{ vars.MASTER1_IP }}
+  WORKER1_IP: ${{ vars.WORKER1_IP }}
+  # WORKER2_IP: ${{ env.WORKER2_IP }}
+  SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+  K8S_PASSWORD: ${{ secrets.K8S_PASSWORD }}
+  GIT_USER: ${{ vars.GIT_USER }}
+  GIT_PASSWORD: ${{ secrets.GIT_PASSWORD }}
+  GIT_REPO: ${{ vars.GIT_REPO }}
+  PRIV_KEY: ${{ secrets.PRIV_KEY }}
+
+jobs:
+  ansible-playbook:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    container:
+      image: docker.io/mcbtaguiad/ansible:8.7.0
+      # env:
+      #   NODE_ENV: development
+      # ports:
+      #   - 80
+      volumes:
+        - ${{ github.workspace }}:/ansible
+        # - ${{ github.workspace }}/k8s:/ansible/k8s
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Git clone extra repo
+        shell: bash
+        run: |
+          git clone --depth=1 https://$GIT_USER:$GIT_PASSWORD@github.com/$GIT_USER/$GIT_REPO.git k8s
+
+      - name: Set host and secret values
+        if: success() || failure()
+        shell: bash
+        run: |
+          sed -i "s/MASTER1_IP/$MASTER1_IP/g" /ansible/inventory/host.yaml
+          sed -i "s/WORKER1_IP/$WORKER1_IP/g" /ansible/inventory/host.yaml
+          sed -i "s/SERVER_PASSWORD/$SERVER_PASSWORD/g" /ansible/inventory/group_vars/all.yaml
+          sed -i "s/K8S_PASSWORD/$K8S_PASSWORD/g" /ansible/playbooks/install_core.yaml
+
+      - name: Reset K8S Cluster
+        if: success() || failure()
+        shell: bash
+        run: |
+          ansible-playbook /ansible/playbooks/reset.yaml -i /ansible/inventory/host.yaml
+        
+      - name: Sleep for 3 minutes, waiting for server to start
+        run: sleep 180s
+        shell: bash
+
+      - name: Init Cluster
+        if: success() || failure()
+        shell: bash
+        run: |
+          ansible-playbook /ansible/playbooks/kubeadm_init.yaml -i /ansible/inventory/host.yaml
+      
+      - name: Install Components
+        if: success() || failure()
+        shell: bash
+        run: |
+          ansible-playbook /ansible/playbooks/install_core.yaml -i /ansible/inventory/host.yaml
