@@ -57,29 +57,31 @@
     - join_command_worker is defined
     # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
-  # kubeadm init --v=5 --config=/etc/kubernetes/kubeadm_config.yaml
-  - name: Join the other nodes to the cluster
+  - name: Join the other nodes to the cluster (Master)
     shell: |-
       kubeadm reset -f &&
-      rm -rf ${HOME}/.kube/config &&
 
-      # Creates a cluster with 1 Control-Plane node an the other nodes join as
-      # worker nodes in the cluster ( 1 CP + many workers )
-      {{ join_command_worker }} &&
-
-      # Multi Control-Plane nodes cluster (all nodes are control-plane nodes)
-      # {{ join_command_control_plane }} &&
+      {{ join_command_control_plane }} &&
 
       true
-    when: inventory_hostname != hostvars[inventory_hostname].groups.all[0]
-  #   register: join_cp_output
-  # - debug: var=join_cp_output
+    when: 
+    - "'master' in group_names"
+    - inventory_hostname != hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
-  - name: Copy kubelet env config
-    copy:
-      dest: "/var/lib/kubelet/kubeadm-flags.env"
-      content: |
-        KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9 --node-ip {{ ansible_ssh_host }}"
+  - name: Join the other nodes to the cluster (Slaves)
+    shell: |-
+      kubeadm reset -f &&
+      
+      {{ join_command_worker }} &&
+
+      true
+    when: "'worker' in group_names"
+# ============================================================================ #
+  # - name: Copy kubelet env config
+  #   copy:
+  #     dest: "/var/lib/kubelet/kubeadm-flags.env"
+  #     content: |
+  #       KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9 --node-ip {{ ansible_ssh_host }}"
 # ============================================================================ #
   - name: Restart service kubelet
     ansible.builtin.service:
@@ -124,37 +126,50 @@
   - debug: var=cluster_info.stdout
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
-  - name: Label all node as worker
+  - name: Label worker node
     shell: |-
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        label nodes --all \
-        node-role.kubernetes.io/worker=true
+      #!/bin/bash
+      set -x
+
+      export KUBECONFIG=/etc/kubernetes/admin.conf
+
+      for i in $(kubectl get nodes  | grep -v master | awk '{ print $1 }' | tail -n +2)
+      do
+        kubectl --kubeconfig /etc/kubernetes/admin.conf label node $i node-role.kubernetes.io/worker=true
+      done
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
-  - name: Label nodes (manual label for now)
-    shell: |-
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf  \
-        label nodes malaya disk=ssd
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf  \
-        label nodes marilag disk=ssd
+  # - name: Label all node as worker
+  #   shell: |-
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf \
+  #       label nodes --all \
+  #       node-role.kubernetes.io/worker=true
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Label nodes (manual label for now)
+  #   shell: |-
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf  \
+  #       label nodes malaya disk=ssd
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf  \
+  #       label nodes marilag disk=ssd
       
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf  \
-        label nodes malaya core=4
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf  \
-        label nodes marilag core=3
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf  \
+  #       label nodes malaya core=4
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf  \
+  #       label nodes marilag core=3
 
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf  \
-        label nodes malaya ram=8gb
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf  \
-        label nodes marilag ram=3.5gb
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf  \
+  #       label nodes malaya ram=8gb
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf  \
+  #       label nodes marilag ram=3.5gb
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
   - name: Fetch kubeconfig file
     ansible.builtin.fetch:
