@@ -1,0 +1,523 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+---
+# ============================================================================ #
+- name: Create dir paths
+  become: true
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: a-rwx,a+rx
+  with_items:
+  - /opt/cni/bin
+# ============================================================================ #
+- name: Add IP address of all hosts to all hosts
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '.*{{ item }}$'
+    line: "{{ hostvars[item].ansible_ssh_host }}        {{ hostvars[item].ansible_hostname }}"
+    state: present
+  #when: hostvars[item].ansible_host is defined
+  with_items: "{{ groups.all }}"
+#- name: Copy kubelet env config
+#  copy:
+#    dest: "/var/lib/kubelet/kubeadm-flags.env"
+#    content: |
+#      KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9 --node-ip {{ ansible_ssh_host }}"
+# ============================================================================ #
+- name: Make sure EPEL repo is installed
+  yum:
+    name: epel-release
+    state: present
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Install prerequisite packages
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - ca-certificates
+  - curl
+  - yum-utils
+  - git
+  when: ansible_os_family == 'RedHat'
+
+- name: Install prerequisite packages
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg
+  - git
+  when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Install storage dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - device-mapper-persistent-data
+  - iscsi-initiator-utils
+  - cryptsetup
+  - nfs-utils
+  - lvm2
+  - jq
+  when: ansible_os_family == 'RedHat'
+- name: Install storage dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - open-iscsi
+  - nfs-server
+  - ufw
+  when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Specify and load the following kernel module dependencies
+  shell: |-
+    echo "InitiatorName=$(/sbin/iscsi-iname)" > /etc/iscsi/initiatorname.iscsi
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Enable kernel module iscsi_tcp
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - iscsi_tcp
+  - rbd
+# ============================================================================ #
+- name: Ensure nfs-server and iscsi is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - nfs-server
+  - iscsi
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Ensure nfs-server and iscsi is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - nfs-server
+  - iscsi
+  - ufw
+  when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Install CNI plugin
+  unarchive:
+    src: https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-amd64-v1.5.1.tgz
+    dest: /opt/cni/bin/
+    extra_opts: "--strip-components=1"
+    owner: root
+    group: root
+    mode: 0755
+    remote_src: true
+  # args:
+  #   creates: /opt/cni/bin/
+# ============================================================================ #
+- name: Specify and load the following kernel module dependencies
+  shell: |-
+    cat <<EOF | tee /etc/modules-load.d/containerd.conf
+    overlay
+    br_netfilter
+    EOF
+# ============================================================================ #
+- name: Set sysctl k8s config
+  copy:
+    dest: "/etc/sysctl.d/99-kubernetes-cri.conf"
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+# ============================================================================ #
+- name: Reload syscctl
+  shell: sysctl --system
+# ============================================================================ #
+# - name: Set net.ipv4.ip_forward
+#   ansible.posix.sysctl:
+#     name: net.ipv4.ip_forward
+#     value: '1'
+#     sysctl_set: true
+#     state: present
+#     reload: true
+# - name: Set net.bridge.bridge-nf-call-iptables
+#   ansible.posix.sysctl:
+#     name: net.bridge.bridge-nf-call-iptables
+#     value: '1'
+#     sysctl_set: true
+#     state: present
+#     reload: true
+# - name: Set net.bridge.bridge-nf-call-iptables
+#   ansible.posix.sysctl:
+#     name: net.bridge.bridge-nf-call-ip6tables
+#     value: '1'
+#     sysctl_set: true
+#     state: present
+#     reload: true
+# ============================================================================ #
+- name: Add docker(ContainerD) repository
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Install containerd.io and its dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - containerd.io
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Install containerd.io and its dependecies
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - containerd
+  when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Recreate containerd config file
+  shell: containerd config default > /etc/containerd/config.toml
+# ============================================================================ #
+- name: Enable cgroup for containerd
+  register: containerd_cfg_out
+  lineinfile:
+    dest: /etc/containerd/config.toml
+    regexp: '\s*SystemdCgroup = false'
+    line: 'SystemdCgroup = true'
+# ============================================================================ #
+- name: Restart containerd service
+  when: containerd_cfg_out.changed
+  systemd:
+    name: containerd
+    enabled: true
+    state: restarted
+# ============================================================================ #
+- name: Remove Swap
+  block:
+  - name: Get swap disk
+    shell: |-
+      fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://'
+    register: SWAP_UUID
+    when: ansible_os_family == 'RedHat'
+  - name: Get swap disk
+    shell: |-
+      fdisk -l | grep swap | awk '{ print $1 }' | sed 's/\://'
+    register: SWAP_DISK
+    when: ansible_os_family == 'Debian'
+  - name: Get UUID
+    shell: |-
+      blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
+    register: SWAP_UUID
+    when: (ansible_os_family == 'Debian') and (SWAP_DISK is defined)
+  - name: Unmount swap
+    mount:
+      src: "{{SWAP_UUID.stdout}}"
+      path: swap
+      fstype: swap
+      opts: defaults
+      state: absent
+    when: SWAP_UUID is defined
+# ============================================================================ #
+  - name: Disable swap
+    ansible.builtin.shell: swapoff -a
+    when: (ansible_swaptotal_mb > 0) or (SWAP_UUID is defined)
+  ignore_errors: yes
+# ============================================================================ #
+- name: Add Kubernetes repository
+  block:
+  - name: Add Kubernetes yum repository
+    become: yes
+    yum_repository:
+      name: Kubernetes
+      description: Kubernetes
+      baseurl: https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+      enabled: yes
+      gpgcheck: yes
+      gpgkey:
+        - https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+    when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+  - name: Add Kubernetes apt repository
+    block:
+      # - name: kubernetes repo gpg
+      #   ansible.builtin.get_url:
+      #     url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+      #     dest: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      - name: Remove file (delete file)
+        ansible.builtin.file:
+          path: "{{ item }}"
+          state: absent
+        with_items:
+        - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+      - name: kubernetes repo gpg
+        shell: |-
+          curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+      - name: kubernetes repo
+        ansible.builtin.apt_repository:
+          repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+          state: present
+    when: ansible_os_family == 'Debian'
+# ============================================================================ #
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+    ignore_errors: yes
+    when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Install Kubernetes binaries
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - kubelet
+  - kubeadm
+  - kubectl
+# ============================================================================ #
+- name: Ensure kubelet is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - kubelet
+# ============================================================================ #
+# - name: Install helm
+#   block:
+#   - name: Download Helm installation script
+#     get_url:
+#       url: https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+#       dest: /tmp/get_helm.sh
+#       mode: '0755'
+#   - name: Run Helm installation script
+#     command: /tmp/get_helm.sh
+#     args:
+#       creates: /usr/local/bin/helm
+#     register: helm_install_result
+#     changed_when: false
+#   - name: Add /usr/local/bin to PATH
+#     lineinfile:
+#       path: ~/.bashrc
+#       line: 'export PATH=$PATH:/usr/local/bin'
+#     when: helm_install_result.rc == 0
+#   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+- name: Get details about installed packages
+  ansible.builtin.package_facts:
+# ============================================================================ #
+- name: Open firewall ports
+  when: firewalld in ansible_facts.packages
+  ansible.posix.firewalld:
+    permanent: yes
+    immediate: yes
+    port: "{{item.port}}/{{item.proto}}"
+    state: "{{item.state}}"
+    zone: "{{item.zone}}"
+  with_items:
+  - description: etcd - client communication - control-plane
+    port: 2379
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: etcd - peer communication - control-plane
+    port: 2380
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: platform Agent
+    port: 8090-8091
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: VxLAN backend
+    port: 8472
+    proto: udp
+    state: enabled
+    zone: public
+  - description: kube-apiserver - control-plane
+    port: 6443
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: kubelet - all nodes
+    port: 10250-10259
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: kubelet - nodeport
+    port: 30000-32767
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: calico BGP
+    port: 179
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: calico VXLAN
+    port: 4789
+    proto: udp
+    state: enabled
+    zone: public
+  - description: calico Typha
+    port: 5473
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: calico Wireguard
+    port: 51820-51821
+    proto: udp
+    state: enabled
+    zone: public
+  - description: ingress http
+    port: 80
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: ingress https
+    port: 443
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: ingress 8443
+    port: 8443
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 25
+    port: 25
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 465
+    port: 465
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 587
+    port: 587
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 993
+    port: 993
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: mail 143
+    port: 143
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: dns 53 tcp
+    port: 53
+    proto: tcp
+    state: enabled
+    zone: public
+  - description: dns 53 udp
+    port: 53
+    proto: udp
+    state: enabled
+    zone: public
+  - description: dns 67 udp
+    port: 67
+    proto: udp
+    state: enabled
+    zone: public
+  ignore_errors: yes
+  when: (ansible_os_family == 'RedHat') and ('firewalld' in ansible_facts.packages)
+# ============================================================================ #
+- name: Open firewall ports
+  community.general.ufw:
+    rule: allow
+    proto: "{{item.proto}}"
+    port: "{{item.port}}"
+  with_items:
+  - description: etcd - client communication - control-plane
+    port: 2379
+    proto: tcp
+    state: enabled
+  - description: etcd - peer communication - control-plane
+    port: 2380
+    proto: tcp
+  - description: platform Agent
+    port: 8090:8091
+    proto: tcp
+  - description: VxLAN backend
+    port: 8472
+    proto: udp
+  - description: kube-apiserver - control-plane
+    port: 6443
+    proto: tcp
+  - description: kubelet - all nodes
+    port: 10250:10259
+    proto: tcp
+  - description: kubelet - nodeport
+    port: 30000:32767
+    proto: tcp
+  - description: calico BGP
+    port: 179
+    proto: tcp
+  - description: calico VXLAN
+    port: 4789
+    proto: udp
+  - description: calico Typha
+    port: 5473
+    proto: tcp
+  - description: calico Wireguard
+    port: 51820:51821
+    proto: udp
+  - description: ingress http
+    port: 80
+    proto: tcp
+  - description: ingress https
+    port: 443
+    proto: tcp
+  - description: ingress 8443
+    port: 8443
+    proto: tcp
+  - description: mail 25
+    port: 25
+    proto: tcp
+  - description: mail 465
+    port: 465
+    proto: tcp
+  - description: mail 587
+    port: 587
+    proto: tcp
+  - description: mail 993
+    port: 993
+    proto: tcp
+  - description: mail 143
+    port: 143
+    proto: tcp
+  - description: dns 53 tcp
+    port: 53
+    proto: tcp
+  - description: dns 53 udp
+    port: 53
+    proto: udp
+  - description: dns 67 udp
+    port: 67
+    proto: udp
+  ignore_errors: yes
+  when: (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
+# ============================================================================ #
+

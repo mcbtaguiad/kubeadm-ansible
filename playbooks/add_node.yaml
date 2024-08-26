@@ -1,0 +1,88 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# ============================================================================ #
+- hosts: all
+  become: true
+  vars:
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
+  tasks:
+  - ansible.builtin.import_tasks: ../tasks/k8s_node.yaml
+    when: inventory_hostname != hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Reupload Certificate
+    shell: kubeadm init phase upload-certs --upload-certs | tail -n 1 
+    register: get_cert_key
+    delegate_to: "{{ groups['master'][0] }}"
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  - debug: var=get_cert_key
+# ============================================================================ #
+  - name: Generate join token
+    shell: kubeadm token create --print-join-command
+    register: kubeadm_join_cmd
+    delegate_to: "{{ groups['master'][0] }}"
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  - debug: var=kubeadm_join_cmd
+# ============================================================================ #
+  - name: Retrieve join commands
+    set_fact:
+      join_command: "{{kubeadm_join_cmd.stdout}}"
+    when:
+    - kubeadm_join_cmd is defined
+    delegate_to: "{{ item }}"
+    with_items: "{{ ansible_play_batch }}"
+    run_once: yes
+# ============================================================================ #
+  - name: Certificate Key
+    set_fact:
+      cert_key: "{{get_cert_key.stdout}}"
+    when:
+    - get_cert_key is defined
+    delegate_to: "{{ item }}"
+    with_items: "{{ ansible_play_batch }}"
+    run_once: yes
+# ============================================================================ #
+  - name: Run kubeadm join master
+    shell: |- 
+      kubeadm reset -f &&
+
+      "{{ join_command }} --certificate-key {{ cert_key }} --control-plane"
+    when: 
+    - "'master' in group_names"
+    - inventory_hostname != hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Run kubeadm join slaves
+    shell: |-
+      kubeadm reset -f &&
+
+      {{ join_command }}
+    when: "'worker' in group_names"
+# ============================================================================ #
+  - name: Label worker node
+    shell: |-
+      #!/bin/bash
+      set -x
+
+      export KUBECONFIG=/etc/kubernetes/admin.conf
+
+      for i in $(kubectl get nodes  | grep -v master | awk '{ print $1 }' | tail -n +2)
+      do
+        kubectl --kubeconfig /etc/kubernetes/admin.conf label node $i node-role.kubernetes.io/worker=true
+      done
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Untaint control plane nodes
+  #   shell: |-
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf \
+  #       taint nodes --all \
+  #       node-role.kubernetes.io/control-plane- \
+  #       || true
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  # - name: Label all node as worker
+  #   shell: |-
+  #     kubectl \
+  #       --kubeconfig /etc/kubernetes/admin.conf \
+  #       label nodes --all \
+  #       node-role.kubernetes.io/worker=true
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
