@@ -29,7 +29,7 @@
     state: present
   when: ansible_os_family == 'RedHat'
 # ============================================================================ #
-- name: Install Longhorn dependecies
+- name: Install storage dependecies
   package:
     name: "{{ item }}"
     state: present
@@ -42,7 +42,7 @@
   - lvm2
   - jq
   when: ansible_os_family == 'RedHat'
-- name: Install Longhorn dependecies
+- name: Install storage dependecies
   package:
     name: "{{ item }}"
     state: present

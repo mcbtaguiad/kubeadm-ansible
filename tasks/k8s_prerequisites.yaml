@@ -14,7 +14,7 @@
   with_items:
   - /opt/cni/bin
   - /var/lib/kubelet
-  - /etc/kubernetes/pki
+  # - /etc/kubernetes/
   - /ansible/k8s
 # ============================================================================ #
 - name: Add IP address of all hosts to all hosts
@@ -31,46 +31,46 @@
 #    content: |
 #      KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9 --node-ip {{ ansible_ssh_host }}"
 # ============================================================================ #
-- name: Copy kubeadm config
-  copy:
-    dest: "/etc/kubernetes/kubeadm_config.yaml"
-    content: |
-      apiVersion: kubeadm.k8s.io/v1beta3
-      kind: ClusterConfiguration
-      kubernetesVersion: stable
-      apiServer:
-        certSANs:
-        - {{ ansible_ssh_host }}
-        extraArgs:
-          apiserver-count: "{{HOST_COUNT}}"
-      controlPlaneEndpoint: {{ ansible_ssh_host }}:6443 
-      networking:
-        podSubnet: 192.168.0.0/16
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# - name: Copy kubeadm config
+#   copy:
+#     dest: "/etc/kubernetes/kubeadm_config.yaml"
+#     content: |
+#       apiVersion: kubeadm.k8s.io/v1beta3
+#       kind: ClusterConfiguration
+#       kubernetesVersion: stable
+#       apiServer:
+#         certSANs:
+#         - {{ ansible_ssh_host }}
+#         extraArgs:
+#           apiserver-count: "{{HOST_COUNT}}"
+#       controlPlaneEndpoint: {{ ansible_ssh_host }}:6443 
+#       networking:
+#         podSubnet: 192.168.0.0/16
+#   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
-- name: Copy kubernetes CA
-  copy:
-    dest: "/etc/kubernetes/pki/ca.crt"
-    content: |
-      -----BEGIN CERTIFICATE-----
-      MIIC/jCCAeagAwIBAgIBADANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDEwprdWJl
-      cm5ldGVzMB4XDTIzMDYyODE4MjMxNVoXDTMzMDYyNTE4MjMxNVowFTETMBEGA1UE
-      AxMKa3ViZXJuZXRlczCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKph
-      ueURMkSjCOQbGSMHY3sxCGo5egG0B/5IU/4tJJlfN21qec5q/ckEexWQ4j/p3BXA
-      qghSi0FVdiQH/9FTCj7k3o17JMPd9q++PisyCwFpUL3u2EY/k37clofGNEq4efzL
-      syn5kyW6AmiXYFusfNE8uOffd1mZpIgqiefwEilp+htY/9UnvyuX/YqhlAU0wSKk
-      cjZl4VGHRVoRBwoj3wd2bkkFClo4UmX/GOHbDKFY8hR1tt3J0sUhpafLsxy/3fkk
-      qDvtbYFfgisw6SzJaUBXb6B3+nCYh5ssSeA/ox1HNVGO+TPZK5e+UUftG1yLPKnd
-      85iJoIhUAX70oRaIc4sCAwEAAaNZMFcwDgYDVR0PAQH/BAQDAgKkMA8GA1UdEwEB
-      /wQFMAMBAf8wHQYDVR0OBBYEFBwhu+hoOcIDgojiv/F7ulp6+MpbMBUGA1UdEQQO
-      MAyCCmt1YmVybmV0ZXMwDQYJKoZIhvcNAQELBQADggEBAFVh+B/2DTLM24XvtHN1
-      meSNP3M4C6F1C0bgw6mbi4Wn6eeOWWKRBOoc/Vle5G/Dcqlo+2se1gLe9QDVefFD
-      3nX69e2L5vz2ODofinXUZRccqy2EutPy+2oAOULXXNx9olMRZ2m1H1aNZ21xGpBj
-      laB3SbxBrfW62yz32X4I07bK+ckquqCMlAnMxeRXlMllatMRX8p2ZADmNrDLo+DX
-      ke+EPAb09SZLTkkwDlWNSmseG0Hl2/9wbh5AE7d9t47n6UQk9HYT2xgQTE6ibEKr
-      1wcVKHNoAtmZrdLiKKghBZ/mlIE2tNuutIilsDKiYq9VWaWyZqmdKQgwxtXBs4NV
-      Y1A=
-      -----END CERTIFICATE-----
+# - name: Copy kubernetes CA
+#   copy:
+#     dest: "/etc/kubernetes/pki/ca.crt"
+#     content: |
+#       -----BEGIN CERTIFICATE-----
+#       MIIC/jCCAeagAwIBAgIBADANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDEwprdWJl
+#       cm5ldGVzMB4XDTIzMDYyODE4MjMxNVoXDTMzMDYyNTE4MjMxNVowFTETMBEGA1UE
+#       AxMKa3ViZXJuZXRlczCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKph
+#       ueURMkSjCOQbGSMHY3sxCGo5egG0B/5IU/4tJJlfN21qec5q/ckEexWQ4j/p3BXA
+#       qghSi0FVdiQH/9FTCj7k3o17JMPd9q++PisyCwFpUL3u2EY/k37clofGNEq4efzL
+#       syn5kyW6AmiXYFusfNE8uOffd1mZpIgqiefwEilp+htY/9UnvyuX/YqhlAU0wSKk
+#       cjZl4VGHRVoRBwoj3wd2bkkFClo4UmX/GOHbDKFY8hR1tt3J0sUhpafLsxy/3fkk
+#       qDvtbYFfgisw6SzJaUBXb6B3+nCYh5ssSeA/ox1HNVGO+TPZK5e+UUftG1yLPKnd
+#       85iJoIhUAX70oRaIc4sCAwEAAaNZMFcwDgYDVR0PAQH/BAQDAgKkMA8GA1UdEwEB
+#       /wQFMAMBAf8wHQYDVR0OBBYEFBwhu+hoOcIDgojiv/F7ulp6+MpbMBUGA1UdEQQO
+#       MAyCCmt1YmVybmV0ZXMwDQYJKoZIhvcNAQELBQADggEBAFVh+B/2DTLM24XvtHN1
+#       meSNP3M4C6F1C0bgw6mbi4Wn6eeOWWKRBOoc/Vle5G/Dcqlo+2se1gLe9QDVefFD
+#       3nX69e2L5vz2ODofinXUZRccqy2EutPy+2oAOULXXNx9olMRZ2m1H1aNZ21xGpBj
+#       laB3SbxBrfW62yz32X4I07bK+ckquqCMlAnMxeRXlMllatMRX8p2ZADmNrDLo+DX
+#       ke+EPAb09SZLTkkwDlWNSmseG0Hl2/9wbh5AE7d9t47n6UQk9HYT2xgQTE6ibEKr
+#       1wcVKHNoAtmZrdLiKKghBZ/mlIE2tNuutIilsDKiYq9VWaWyZqmdKQgwxtXBs4NV
+#       Y1A=
+#       -----END CERTIFICATE-----
 # ============================================================================ #
 - name: Make sure EPEL repo is installed
   yum:
@@ -103,7 +103,7 @@
   - git
   when: ansible_os_family == 'Debian'
 # ============================================================================ #
-- name: Install Longhorn dependecies
+- name: Install storage dependecies
   package:
     name: "{{ item }}"
     state: present
@@ -116,7 +116,7 @@
   - lvm2
   - jq
   when: ansible_os_family == 'RedHat'
-- name: Install Longhorn dependecies
+- name: Install storage dependecies
   package:
     name: "{{ item }}"
     state: present
@@ -134,8 +134,11 @@
 # ============================================================================ #
 - name: Enable kernel module iscsi_tcp
   community.general.modprobe:
-    name: iscsi_tcp
+    name: "{{ item }}"
     state: present
+  with_items:
+  - iscsi_tcp
+  - rbd
 # ============================================================================ #
 - name: Ensure nfs-server and iscsi is started
   systemd:
@@ -185,6 +188,9 @@
       net.ipv4.ip_forward = 1
       net.bridge.bridge-nf-call-ip6tables = 1
 # ============================================================================ #
+- name: Reload syscctl
+  shell: sysctl --system
+# ============================================================================ #
 # - name: Set net.ipv4.ip_forward
 #   ansible.posix.sysctl:
 #     name: net.ipv4.ip_forward
@@ -220,7 +226,7 @@
   with_items:
   - containerd.io
   when: ansible_os_family == 'RedHat'
-
+# ============================================================================ #
 - name: Install containerd.io and its dependecies
   ansible.builtin.apt:
     name: "{{ item }}"
@@ -253,17 +259,19 @@
       fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
     register: SWAP_UUID
     when: ansible_os_family == 'RedHat'
-
+# ============================================================================ #
   - name: Get swap disk
     shell: |-
       fdisk -l | grep swap | awk '{ print $1 }' | sed 's/\://' 
     register: SWAP_DISK
     when: ansible_os_family == 'Debian'
+# ============================================================================ #
   - name: Get UUID
     shell: |-
       blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
     register: SWAP_UUID
     when: (ansible_os_family == 'Debian') and (SWAP_DISK is defined)
+# ============================================================================ #
   - name: Unmount swap
     mount:
       src: "{{SWAP_UUID.stdout}}"
@@ -272,6 +280,7 @@
       opts: defaults
       state: absent
     when: SWAP_UUID is defined
+# ============================================================================ #
   - name: Disable swap
     ansible.builtin.shell: swapoff -a
     when: (ansible_swaptotal_mb > 0) or (SWAP_UUID is defined)
@@ -291,19 +300,24 @@
         - https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
     when: ansible_os_family == 'RedHat'
 
-  
-
   - name: Add Kubernetes apt repository
     block:
       # - name: kubernetes repo gpg
       #   ansible.builtin.get_url:
       #     url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
       #     dest: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      - name: kubernetes repo gpg
+      - name: Remove file (delete file)
+        ansible.builtin.file:
+          path: "{{ item }}"
+          state: absent
+        with_items:
+        - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        
+      - name: Kubernetes repo gpg
         shell: |-
           curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-      - name: kubernetes repo
+      - name: Kubernetes repo
         ansible.builtin.apt_repository:
           repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
           state: present
@@ -332,25 +346,25 @@
   with_items:
   - kubelet
 # ============================================================================ #
-- name: Install helm
-  block: 
-  - name: Download Helm installation script
-    get_url:
-      url: https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
-      dest: /tmp/get_helm.sh
-      mode: '0755'
-  - name: Run Helm installation script
-    command: /tmp/get_helm.sh
-    args:
-      creates: /usr/local/bin/helm
-    register: helm_install_result
-    changed_when: false
-  - name: Add /usr/local/bin to PATH
-    lineinfile:
-      path: ~/.bashrc
-      line: 'export PATH=$PATH:/usr/local/bin'
-    when: helm_install_result.rc == 0
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# - name: Install helm
+#   block: 
+#   - name: Download Helm installation script
+#     get_url:
+#       url: https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+#       dest: /tmp/get_helm.sh
+#       mode: '0755'
+#   - name: Run Helm installation script
+#     command: /tmp/get_helm.sh
+#     args:
+#       creates: /usr/local/bin/helm
+#     register: helm_install_result
+#     changed_when: false
+#   - name: Add /usr/local/bin to PATH
+#     lineinfile:
+#       path: ~/.bashrc
+#       line: 'export PATH=$PATH:/usr/local/bin'
+#     when: helm_install_result.rc == 0
+#   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
 - name: Get details about installed packages
   ansible.builtin.package_facts:
