@@ -13,7 +13,7 @@
     changed_when: false
     shell: |-
       kubeadm reset -f
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     ignore_errors: True
 # ============================================================================ #
   - name: Ensure nfs-server and iscsi is disabled
@@ -35,6 +35,7 @@
     with_items:
     - iscsi_tcp
     - br_netfilter
+    - rbd
 # ============================================================================ #
   # - name: Set net.ipv4.ip_forward
   # ansible.posix.sysctl:
@@ -80,7 +81,7 @@
     with_items:
     - open-iscsi
     - nfs-server
-    # - ufw
+    - ufw
     - containerd
     - kubelet
     - kubeadm
@@ -94,11 +95,10 @@
     with_items:
     - /etc/iscsi/initiatorname.iscsi
     - /etc/sysctl.d/99-kubernetes-cri.conf
-    - /usr/local/bin/helm
     - /etc/kubernetes/kubeadm_config.yaml
     # - /var/lib/kubelet/config.yaml
-    - /etc/kubernetes/pki/ca.crt
-    - /var/lib/kubelet/kubeadm-flags.env
+    # - /etc/kubernetes/pki/ca.crt
+    # - /var/lib/kubelet/kubeadm-flags.env
     # - /ansible/
     when: ansible_os_family == 'RedHat'
 
@@ -109,10 +109,9 @@
     with_items:
     - /etc/apt/sources.list.d/kubernetes.list
     - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    - /usr/local/bin/helm
     - /etc/kubernetes/kubeadm_config.yaml
-    - /var/lib/kubelet/config.yaml
-    - /etc/kubernetes/pki/ca.crt
+    # - /var/lib/kubelet/config.yaml
+    # - /etc/kubernetes/pki/ca.crt
     # - /ansible/
     when: ansible_os_family == 'Debian'
 # ============================================================================ #
@@ -319,6 +318,6 @@
     when:
     - (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
 # ============================================================================ #
-  - name: Reboot machine
-    ansible.builtin.reboot:
-      msg: "Rebooting machine in 5 seconds"
+  # - name: Reboot machine
+  #   ansible.builtin.reboot:
+  #     msg: "Rebooting machine in 5 seconds"
