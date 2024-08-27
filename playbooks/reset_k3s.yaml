@@ -15,12 +15,14 @@
       changed_when: false
       shell: |-
         /usr/local/bin/k3s-uninstall.sh
-      when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+      when: "'master' in group_names"
     - name: Node
       changed_when: false
       shell: |-
         /usr/local/bin/k3s-agent-uninstall.sh
+      when: "'worker' in group_names"
     ignore_errors: True
+
 # ============================================================================ #
   - name: Ensure nfs-server and iscsi is disabled
     systemd:
@@ -242,6 +244,6 @@
     when:
     - (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
 # ============================================================================ #
-  - name: Reboot machine
-    ansible.builtin.reboot:
-      msg: "Rebooting machine in 5 seconds"
+  # - name: Reboot machine
+  #   ansible.builtin.reboot:
+  #     msg: "Rebooting machine in 5 seconds"
