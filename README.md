@@ -3,6 +3,7 @@ Ansible playbook that creates the latest version of Kubernetes 1.3x of instance 
 ### Prerequisites
 
 - A host that can run docker/podman or an existing kubernetes cluster.
+- One or more nodes/vm for the k8s cluster.
 
 ### Setup Ansible
 ```
