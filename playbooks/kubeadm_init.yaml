@@ -77,23 +77,12 @@
       true
     when: "'worker' in group_names"
 # ============================================================================ #
-  # - name: Copy kubelet env config
-  #   copy:
-  #     dest: "/var/lib/kubelet/kubeadm-flags.env"
-  #     content: |
-  #       KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9 --node-ip {{ ansible_ssh_host }}"
-# ============================================================================ #
-  - name: Restart service kubelet
-    ansible.builtin.service:
-      name: kubelet
-      state: restarted
-# ============================================================================ #
-  - name: Install Calico CNI plugin
-    command: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  # - name: Install Calico CNI plugin
+  #   command: |-
+  #     kubectl apply \
+  #       --kubeconfig /etc/kubernetes/admin.conf \
+  #       -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
 # ============================================================================ #
   - name: Untaint control plane nodes
     shell: |-
