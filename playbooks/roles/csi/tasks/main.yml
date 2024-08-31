@@ -1,0 +1,60 @@
+---
+# tasks file for csi
+# ============================================================================ #
+- name: Install storage dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - device-mapper-persistent-data
+  - iscsi-initiator-utils
+  - cryptsetup
+  - nfs-utils
+  - lvm2
+  - jq
+  when: ansible_os_family == 'RedHat'
+- name: Install storage dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+    # update_cache: yes
+  with_items:
+  - open-iscsi
+  - nfs-server
+  - ufw
+  when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Specify and load the following kernel module dependencies
+  shell: |-
+    echo "InitiatorName=$(/sbin/iscsi-iname)" > /etc/iscsi/initiatorname.iscsi
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Enable kernel module iscsi_tcp
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - iscsi_tcp
+  - rbd
+# ============================================================================ #
+- name: Ensure nfs-server and iscsi is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - nfs-server
+  - iscsi
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Ensure nfs-server and iscsi is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - nfs-server
+  - iscsi
+  - ufw
+  when: ansible_os_family == 'Debian'

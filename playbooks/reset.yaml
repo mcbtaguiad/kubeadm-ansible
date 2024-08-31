@@ -37,28 +37,6 @@
     - br_netfilter
     - rbd
 # ============================================================================ #
-  # - name: Set net.ipv4.ip_forward
-  # ansible.posix.sysctl:
-  #   name: net.ipv4.ip_forward
-  #   value: '1'
-  #   sysctl_set: true
-  #   state: absent
-  #   reload: true
-  # - name: Set net.bridge.bridge-nf-call-iptables
-  #   ansible.posix.sysctl:
-  #     name: net.bridge.bridge-nf-call-iptables
-  #     value: '1'
-  #     sysctl_set: true
-  #     state: absent
-  #     reload: true
-  # - name: Set net.bridge.bridge-nf-call-iptables
-  #   ansible.posix.sysctl:
-  #     name: net.bridge.bridge-nf-call-ip6tables
-  #     value: '1'
-  #     sysctl_set: true
-  #     state: absent
-  #     reload: true
-# ============================================================================ #
   - name: Remove installed packages
     package:
       name: "{{ item }}"

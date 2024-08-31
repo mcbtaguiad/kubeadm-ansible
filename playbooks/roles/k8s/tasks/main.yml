@@ -1,0 +1,100 @@
+---
+# tasks file for k8s-prerequisite
+- name: Add docker(ContainerD) repository
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Install containerd.io and its dependecies
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - containerd.io
+  when: ansible_os_family == 'RedHat'
+# ============================================================================ #
+- name: Install containerd.io and its dependecies
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - containerd
+  when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Recreate containerd config file
+  shell: containerd config default > /etc/containerd/config.toml
+# ============================================================================ #
+- name: Enable cgroup for containerd
+  register: containerd_cfg_out
+  lineinfile:
+    dest: /etc/containerd/config.toml
+    regexp: '\s*SystemdCgroup = false'
+    line: 'SystemdCgroup = true'
+# ============================================================================ #
+- name: Restart containerd service
+  when: containerd_cfg_out.changed
+  systemd:
+    name: containerd
+    enabled: true
+    state: restarted
+# ============================================================================ #
+- name: Add Kubernetes repository
+  block:
+  - name: Add Kubernetes yum repository
+    become: yes
+    yum_repository:
+      name: Kubernetes
+      description: Kubernetes
+      baseurl: https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+      enabled: yes
+      gpgcheck: yes
+      gpgkey: 
+        - https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+    when: ansible_os_family == 'RedHat'
+
+  - name: Add Kubernetes apt repository
+    block:
+      # - name: kubernetes repo gpg
+      #   ansible.builtin.get_url:
+      #     url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+      #     dest: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      - name: Remove file (delete file)
+        ansible.builtin.file:
+          path: "{{ item }}"
+          state: absent
+        with_items:
+        - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        
+      - name: Kubernetes repo gpg
+        shell: |-
+          curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+      - name: Kubernetes repo
+        ansible.builtin.apt_repository:
+          repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+          state: present
+    when: ansible_os_family == 'Debian'
+
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+    ignore_errors: yes
+    when: ansible_os_family == 'Debian'
+# ============================================================================ #
+- name: Install Kubernetes binaries
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - kubelet
+  - kubeadm
+  - kubectl
+# ============================================================================ #
+- name: Ensure kubelet is started
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+  - kubelet

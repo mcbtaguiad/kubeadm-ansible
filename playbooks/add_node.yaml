@@ -5,6 +5,11 @@
   become: true
   vars:
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
+  roles:
+  - sys
+  - csi
+  - k8s
+# ============================================================================ #
   tasks:
   - ansible.builtin.import_tasks: ../tasks/k8s_node.yaml
     when: inventory_hostname != hostvars[inventory_hostname].groups.all[0]

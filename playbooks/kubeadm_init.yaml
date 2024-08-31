@@ -5,9 +5,12 @@
   become: true
   vars:
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
-  tasks:
-  - ansible.builtin.import_tasks: ../tasks/k8s_prerequisites.yaml
+  roles:
+  - sys
+  - csi
+  - k8s
 # ============================================================================ #
+  tasks:
   - name: Init first cluster member
     # Run this only on the first node in the inventory
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
@@ -21,7 +24,7 @@
       #  &&
       kubeadm init --v=5 --pod-network-cidr=192.168.0.0/16 --service-cidr=192.169.0.0/16 --upload-certs --control-plane-endpoint {{ ansible_ssh_host }}
       true
-# ============================================================================ #
+  # ============================================================================ #
   # - debug: var=join_commands
   - name: Retrieve join commands
     set_fact:
@@ -47,7 +50,7 @@
     with_items: "{{ ansible_play_batch }}"
     run_once: yes
     # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   - debug:
       msg:
         join_command_control_plane: "{{ join_command_control_plane }}"
@@ -56,7 +59,7 @@
     - join_command_control_plane is defined
     - join_command_worker is defined
     # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   - name: Join the other nodes to the cluster (Master)
     shell: |-
       kubeadm reset -f &&
@@ -67,7 +70,7 @@
     when: 
     - "'master' in group_names"
     - inventory_hostname != hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   - name: Join the other nodes to the cluster (Slaves)
     shell: |-
       kubeadm reset -f &&
@@ -76,14 +79,14 @@
 
       true
     when: "'worker' in group_names"
-# ============================================================================ #
-  # - name: Install Calico CNI plugin
-  #   command: |-
-  #     kubectl apply \
-  #       --kubeconfig /etc/kubernetes/admin.conf \
-  #       -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
-  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
+  - name: Install Calico CNI plugin
+    command: |-
+      kubectl apply \
+        --kubeconfig /etc/kubernetes/admin.conf \
+        -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  # ============================================================================ #
   - name: Untaint control plane nodes
     shell: |-
       kubectl \
@@ -92,7 +95,7 @@
         node-role.kubernetes.io/control-plane- \
         || true
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   - name: Wait for nodes to become ready
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     shell: |-
@@ -104,7 +107,7 @@
     retries: 10
     delay: 10
     until: control_plane_ready.stdout.strip().split() == [ HOST_COUNT | string , 'Ready']
-# ============================================================================ #
+  # ============================================================================ #
   - name: Get cluster info
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     ansible.builtin.shell: |-
@@ -114,7 +117,7 @@
     register: cluster_info
   - debug: var=cluster_info.stdout
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   - name: Label worker node
     shell: |-
       #!/bin/bash
@@ -127,7 +130,7 @@
         kubectl --kubeconfig /etc/kubernetes/admin.conf label node $i node-role.kubernetes.io/worker=true
       done
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   # - name: Label all node as worker
   #   shell: |-
   #     kubectl \
@@ -135,7 +138,7 @@
   #       label nodes --all \
   #       node-role.kubernetes.io/worker=true
   #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   # - name: Label nodes (manual label for now)
   #   shell: |-
   #     kubectl \
@@ -159,10 +162,11 @@
   #       --kubeconfig /etc/kubernetes/admin.conf  \
   #       label nodes marilag ram=3.5gb
   #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
+  # ============================================================================ #
   - name: Fetch kubeconfig file
     ansible.builtin.fetch:
       src: /etc/kubernetes/admin.conf
       dest: ../admin.conf
       flat: yes
     when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+
