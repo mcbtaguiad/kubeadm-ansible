@@ -129,119 +129,84 @@
     permanent: yes
     immediate: yes
     port: "{{item.port}}/{{item.proto}}"
-    state: "{{item.state}}"
-    zone: "{{item.zone}}"
+    state: enabled
+    zone: public
   with_items:
   - description: etcd - client communication - control-plane
     port: 2379
     proto: tcp
-    state: enabled
-    zone: public
   - description: etcd - peer communication - control-plane
     port: 2380
     proto: tcp
-    state: enabled
-    zone: public
   - description: platform Agent
     port: 8090-8091
     proto: tcp
-    state: enabled
-    zone: public
   - description: VxLAN backend 
     port: 8472
     proto: udp
-    state: enabled
-    zone: public
   - description: kube-apiserver - control-plane
     port: 6443
     proto: tcp
-    state: enabled
-    zone: public
   - description: kubelet - all nodes
     port: 10250-10259
     proto: tcp
-    state: enabled
-    zone: public
   - description: kubelet - nodeport
     port: 30000-32767
     proto: tcp
-    state: enabled
-    zone: public
   - description: calico BGP
     port: 179
     proto: tcp
-    state: enabled
-    zone: public
   - description: calico VXLAN
     port: 4789
     proto: udp
-    state: enabled
-    zone: public
   - description: calico Typha
     port: 5473
     proto: tcp
-    state: enabled
-    zone: public
   - description: calico Wireguard
     port: 51820-51821 
     proto: udp
-    state: enabled
-    zone: public
   - description: ingress http
     port: 80
     proto: tcp
-    state: enabled
-    zone: public
   - description: ingress https
     port: 443
     proto: tcp
-    state: enabled
-    zone: public
   - description: ingress 8443
     port: 8443
     proto: tcp
-    state: enabled
-    zone: public
   - description: mail 25
     port: 25
     proto: tcp
-    state: enabled
-    zone: public
   - description: mail 465
     port: 465
     proto: tcp
-    state: enabled
-    zone: public
   - description: mail 587
     port: 587
     proto: tcp
-    state: enabled
-    zone: public
   - description: mail 993
     port: 993
     proto: tcp
-    state: enabled
-    zone: public
   - description: mail 143
     port: 143
     proto: tcp
-    state: enabled
-    zone: public
   - description: dns 53 tcp
     port: 53
     proto: tcp
-    state: enabled
-    zone: public
   - description: dns 53 udp
     port: 53
     proto: udp
-    state: enabled
-    zone: public
   - description: dns 67 udp
     port: 67
     proto: udp
-    state: enabled
-    zone: public
+  - description: nfs 111 udp
+    port: 111
+    proto: udp
+  - description: dns 111 tcp
+    port: 111
+    proto: tcp
+  - description: nfs 2049 udp
+    port: 2049
+    proto: udp
   ignore_errors: yes
   when: (ansible_os_family == 'RedHat') and ('firewalld' in ansible_facts.packages)
 # ============================================================================ #
@@ -317,6 +282,15 @@
     proto: udp
   - description: dns 67 udp
     port: 67
+    proto: udp
+  - description: nfs 111 udp
+    port: 111
+    proto: udp
+  - description: dns 111 tcp
+    port: 111
+    proto: tcp
+  - description: nfs 2049 udp
+    port: 2049
     proto: udp
   ignore_errors: yes
   when: (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
