@@ -11,7 +11,7 @@
     name: "{{ item }}"
     state: present
   with_items:
-  - containerd.io
+  - containerd
   when: ansible_facts['os_family'] == 'RedHat'
 # ============================================================================ #
 - name: Install containerd.io and its dependecies
@@ -98,6 +98,17 @@
     - kubeadm
     - kubelet
     - kubectl
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install yum plugin-versionlock
+  package:
+    name: yum-plugin-versionlock
+    state: present
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Lock Kubernetes packages on RHEL/CentOS
+  command: yum versionlock add kubelet kubeadm kubectl
+  when: ansible_facts['os_family'] == 'RedHat'
 # ============================================================================ #
 - name: Ensure kubelet is started
   systemd:
