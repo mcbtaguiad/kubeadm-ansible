@@ -11,14 +11,13 @@
   with_items:
   - /opt/cni/bin
   - /var/lib/kubelet
-  # - /etc/kubernetes/
   - /ansible/k8s
 # ============================================================================ #
 - name: Add IP address of all hosts to all hosts
   lineinfile:
     dest: /etc/hosts
     regexp: '.*{{ item }}$'
-    line: "{{ hostvars[item].ansible_ssh_host }}	{{ hostvars[item].ansible_hostname }}"
+    line: "{{ hostvars[item].ansible_host }} {{ hostvars[item].ansible_facts.hostname }}"
     state: present
   #when: hostvars[item].ansible_host is defined
   with_items: "{{ groups.all }}"
@@ -27,7 +26,7 @@
   yum:
     name: epel-release
     state: present
-  when: ansible_os_family == 'RedHat'
+  when: ansible_facts['os_family'] == 'RedHat'
 # ============================================================================ #
 - name: Install prerequisite packages 
   package:
@@ -39,7 +38,8 @@
   - curl
   - yum-utils
   - git
-  when: ansible_os_family == 'RedHat'
+  - python3-kubernetes
+  when: ansible_facts['os_family'] == 'RedHat'
 
 - name: Install prerequisite packages 
   ansible.builtin.apt:
@@ -52,20 +52,8 @@
   - curl 
   - gpg
   - git
-  when: ansible_os_family == 'Debian'
-
-# ============================================================================ #
-- name: Install CNI plugin 
-  unarchive:
-    src: https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-amd64-v1.5.1.tgz
-    dest: /opt/cni/bin/
-    extra_opts: "--strip-components=1"
-    owner: root
-    group: root
-    mode: 0755
-    remote_src: true
-  # args:
-  #   creates: /opt/cni/bin/
+  - python3-kubernetes
+  when: ansible_facts['os_family'] == 'Debian'
 # ============================================================================ #
 - name: Specify and load the following kernel module dependencies
   shell: |-
@@ -85,213 +73,77 @@
 - name: Reload syscctl
   shell: sysctl --system
 # ============================================================================ #
-- name: Remove Swap
+- name: Disable swap for RedHat
   block:
-  - name: Get swap disk
-    shell: |-
-      fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
-    register: SWAP_UUID
-    when: ansible_os_family == 'RedHat'
-# ============================================================================ #
-  - name: Get swap disk
-    shell: |-
-      fdisk -l | grep swap | awk '{ print $1 }' | sed 's/\://' 
-    register: SWAP_DISK
-    when: ansible_os_family == 'Debian'
-# ============================================================================ #
-  - name: Get UUID
-    shell: |-
-      blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
-    register: SWAP_UUID
-    when: (ansible_os_family == 'Debian') and (SWAP_DISK is defined)
-# ============================================================================ #
-  - name: Unmount swap
-    mount:
-      src: "{{SWAP_UUID.stdout}}"
-      path: swap
-      fstype: swap
-      opts: defaults
-      state: absent
-    when: SWAP_UUID is defined
-# ============================================================================ #
-  - name: Disable swap
-    ansible.builtin.shell: swapoff -a
-    when: (ansible_swaptotal_mb > 0) or (SWAP_UUID is defined)
-  ignore_errors: yes
-# ============================================================================ #
+    - ansible.builtin.command: swapoff -a
+    - ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^\s*(\S+)\s+(\S+)\s+swap\s+'
+        replace: '# \1 \2 swap '
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - ansible_facts.swaptotal_mb | int > 0
 
-- name: Get details about installed packages
-  ansible.builtin.package_facts:
+- name: Disable swap for Debian
+  block:
+    - ansible.builtin.command: swapoff -a
+    - ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^\s*(\S+)\s+(\S+)\s+swap\s+'
+        replace: '# \1 \2 swap '
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - ansible_facts.swaptotal_mb | int > 0
 # ============================================================================ #
-- name: Open firewall ports
-  when: firewalld in ansible_facts.packages
+- name: Gather package facts
+  ansible.builtin.package_facts:
+    manager: auto
+# ============================================================================ #
+- name: Open firewall ports (firewalld)
   ansible.posix.firewalld:
     permanent: yes
     immediate: yes
-    port: "{{item.port}}/{{item.proto}}"
+    port: "{{ item.port }}/{{ item.proto }}"
     state: enabled
     zone: public
-  with_items:
-  - description: etcd - client communication - control-plane
-    port: 2379
-    proto: tcp
-  - description: etcd - peer communication - control-plane
-    port: 2380
-    proto: tcp
-  - description: platform Agent
-    port: 8090-8091
-    proto: tcp
-  - description: VxLAN backend 
-    port: 8472
-    proto: udp
-  - description: kube-apiserver - control-plane
-    port: 6443
-    proto: tcp
-  - description: kubelet - all nodes
-    port: 10250-10259
-    proto: tcp
-  - description: kubelet - nodeport
-    port: 30000-32767
-    proto: tcp
-  - description: calico BGP
-    port: 179
-    proto: tcp
-  - description: calico VXLAN
-    port: 4789
-    proto: udp
-  - description: calico Typha
-    port: 5473
-    proto: tcp
-  - description: calico Wireguard
-    port: 51820-51821 
-    proto: udp
-  - description: ingress http
-    port: 80
-    proto: tcp
-  - description: ingress https
-    port: 443
-    proto: tcp
-  - description: ingress 8443
-    port: 8443
-    proto: tcp
-  - description: mail 25
-    port: 25
-    proto: tcp
-  - description: mail 465
-    port: 465
-    proto: tcp
-  - description: mail 587
-    port: 587
-    proto: tcp
-  - description: mail 993
-    port: 993
-    proto: tcp
-  - description: mail 143
-    port: 143
-    proto: tcp
-  - description: dns 53 tcp
-    port: 53
-    proto: tcp
-  - description: dns 53 udp
-    port: 53
-    proto: udp
-  - description: dns 67 udp
-    port: 67
-    proto: udp
-  - description: nfs 111 udp
-    port: 111
-    proto: udp
-  - description: dns 111 tcp
-    port: 111
-    proto: tcp
-  - description: nfs 2049 udp
-    port: 2049
-    proto: udp
+  loop:
+    - { port: 2379, proto: tcp }        # etcd client
+    - { port: 2380, proto: tcp }        # etcd peer
+    - { port: 8090-8091, proto: tcp }   # platform agent
+    - { port: 8472, proto: udp }        # VXLAN backend
+    - { port: 6443, proto: tcp }        # kube-apiserver
+    - { port: 10250-10259, proto: tcp } # kubelet
+    - { port: 30000-32767, proto: tcp } # nodeport
+    - { port: 179, proto: tcp }         # calico BGP
+    - { port: 4789, proto: udp }        # calico VXLAN
+    - { port: 111, proto: udp }         # nfs
+    - { port: 111, proto: tcp }         # rpcbind
+    - { port: 2049, proto: udp }        # nfs
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - "'firewalld' in ansible_facts.packages"
   ignore_errors: yes
-  when: (ansible_os_family == 'RedHat') and ('firewalld' in ansible_facts.packages)
 # ============================================================================ #
-- name: Open firewall ports
+- name: Open firewall ports (ufw)
   community.general.ufw:
     rule: allow
-    proto: "{{item.proto}}"
-    port: "{{item.port}}"
-  with_items:
-  - description: etcd - client communication - control-plane
-    port: 2379
-    proto: tcp
-    state: enabled
-  - description: etcd - peer communication - control-plane
-    port: 2380
-    proto: tcp
-  - description: platform Agent
-    port: 8090:8091
-    proto: tcp
-  - description: VxLAN backend 
-    port: 8472
-    proto: udp
-  - description: kube-apiserver - control-plane
-    port: 6443
-    proto: tcp
-  - description: kubelet - all nodes
-    port: 10250:10259
-    proto: tcp
-  - description: kubelet - nodeport
-    port: 30000:32767
-    proto: tcp
-  - description: calico BGP
-    port: 179
-    proto: tcp
-  - description: calico VXLAN
-    port: 4789
-    proto: udp
-  - description: calico Typha
-    port: 5473
-    proto: tcp
-  - description: calico Wireguard
-    port: 51820:51821 
-    proto: udp
-  - description: ingress http
-    port: 80
-    proto: tcp
-  - description: ingress https
-    port: 443
-    proto: tcp
-  - description: ingress 8443
-    port: 8443
-    proto: tcp
-  - description: mail 25
-    port: 25
-    proto: tcp
-  - description: mail 465
-    port: 465
-    proto: tcp
-  - description: mail 587
-    port: 587
-    proto: tcp
-  - description: mail 993
-    port: 993
-    proto: tcp
-  - description: mail 143
-    port: 143
-    proto: tcp
-  - description: dns 53 tcp
-    port: 53
-    proto: tcp
-  - description: dns 53 udp
-    port: 53
-    proto: udp
-  - description: dns 67 udp
-    port: 67
-    proto: udp
-  - description: nfs 111 udp
-    port: 111
-    proto: udp
-  - description: dns 111 tcp
-    port: 111
-    proto: tcp
-  - description: nfs 2049 udp
-    port: 2049
-    proto: udp
+    proto: "{{ item.proto }}"
+    port: "{{ item.port }}"
+  loop:
+    - { port: 2379, proto: tcp }
+    - { port: 2380, proto: tcp }
+    - { port: 8090:8091, proto: tcp }
+    - { port: 8472, proto: udp }
+    - { port: 6443, proto: tcp }
+    - { port: 10250:10259, proto: tcp }
+    - { port: 30000:32767, proto: tcp }
+    - { port: 179, proto: tcp }
+    - { port: 4789, proto: udp }
+    - { port: 5473, proto: tcp }
+    - { port: 111, proto: udp }
+    - { port: 111, proto: tcp }
+    - { port: 2049, proto: udp }
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - "'ufw' in ansible_facts.packages"
   ignore_errors: yes
-  when: (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
-# ============================================================================ #
