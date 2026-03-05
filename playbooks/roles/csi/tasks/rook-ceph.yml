@@ -1,0 +1,53 @@
+---
+- name: Apply CRDs
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/rook/rook/refs/tags/{{ ROOK_VERSION }}/deploy/examples/crds.yaml
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Apply common.yaml
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/rook/rook/refs/tags/{{ ROOK_VERSION }}/deploy/examples/common.yaml
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Apply CSI Operator
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/rook/rook/refs/tags/{{ ROOK_VERSION }}/deploy/examples/csi-operator.yaml
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}" 
+# ============================================================================ #
+- name: Apply Operator
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/rook/rook/refs/tags/{{ ROOK_VERSION }}/deploy/examples/operator.yaml
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Wait until rook-ceph-operator deployment is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ KUBECONFIG }}"
+    kind: Deployment
+    namespace: rook-ceph
+    name: rook-ceph-operator
+  register: operator_deploy
+  until: operator_deploy.resources[0].status.availableReplicas is defined and operator_deploy.resources[0].status.availableReplicas | int > 0
+  retries: 30
+  delay: 10
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Apply Cluster
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/rook/rook/refs/tags/{{ ROOK_VERSION }}/deploy/examples/cluster.yaml
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
