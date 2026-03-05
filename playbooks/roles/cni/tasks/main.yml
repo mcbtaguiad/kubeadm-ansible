@@ -1,0 +1,18 @@
+---
+- name: Install CNI plugin 
+  unarchive:
+    src: https://github.com/containernetworking/plugins/releases/download/{{ CNI_PLUGIN_VERSION }}/cni-plugins-linux-amd64-{{ CNI_PLUGIN_VERSION }}.tgz
+    dest: /opt/cni/bin/
+    extra_opts: "--strip-components=1"
+    owner: root
+    group: root
+    mode: 0755
+    remote_src: true
+# ============================================================================ #
+- name: Deploy Calico CNI
+  include_tasks: calico.yml
+  when: "'calico' in apps_enabled"
+# ============================================================================ #
+- name: Deploy Flannel CNI
+  include_tasks: flannel.yml
+  when: "'flannel' in apps_enabled"
