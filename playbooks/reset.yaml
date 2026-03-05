@@ -44,7 +44,7 @@
     - cryptsetup
     - nfs-utils
     - lvm2
-    - containerd.io
+    - containerd
     - kubelet
     - kubeadm
     - kubectl
