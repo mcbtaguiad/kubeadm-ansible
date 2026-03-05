@@ -1,11 +1,8 @@
 # ============================================================================ #
-# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
 # ============================================================================ #
 - hosts: all
   become: true
-  vars:
-    HOST_COUNT: "{{ ansible_play_hosts | length }}"
-    MASTER_IP: "{{ hostvars['master1']['ansible_default_ipv4']['address'] }}"
 # ============================================================================ #
   tasks:
   - name: Reset/delete cluster
@@ -15,6 +12,7 @@
       kubeadm reset -f
     # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
     ignore_errors: True
+    run_once: true
 # ============================================================================ #
   - name: Ensure nfs-server and iscsi is disabled
     systemd:
@@ -22,7 +20,6 @@
       state: stopped
       enabled: true
     with_items:
-    - nfs-server
     - iscsi
     - kubelet
     - containerd
@@ -45,295 +42,154 @@
     with_items:
     - iscsi-initiator-utils
     - cryptsetup
-    # - nfs-utils
+    - nfs-utils
     - lvm2
     - containerd.io
     - kubelet
     - kubeadm
     - kubectl
+    - python3-kubernetes
     when: ansible_os_family == 'RedHat'
+    ignore_errors: yes
   - name: Remove installed packages
     ansible.builtin.apt:
       name: "{{ item }}"
       state: absent
     with_items:
     - open-iscsi
-    - nfs-server
     - ufw
     - containerd
     - kubelet
     - kubeadm
     - kubectl
+    - python3-kubernetes
     when: ansible_os_family == 'Debian'
-# ============================================================================ #
-  - name: Remove file (delete file)
-    ansible.builtin.file:
-      path: "{{ item }}"
-      state: absent
-    with_items:
-    - /etc/iscsi/initiatorname.iscsi
-    - /etc/sysctl.d/99-kubernetes-cri.conf
-    - /etc/kubernetes/kubeadm_config.yaml
-    # - /var/lib/kubelet/config.yaml
-    # - /etc/kubernetes/pki/ca.crt
-    # - /var/lib/kubelet/kubeadm-flags.env
-    # - /ansible/
-    when: ansible_os_family == 'RedHat'
-
-  - name: Remove file (delete file)
-    ansible.builtin.file:
-      path: "{{ item }}"
-      state: absent
-    with_items:
-    - /etc/apt/sources.list.d/kubernetes.list
-    - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    - /etc/kubernetes/kubeadm_config.yaml
-    # - /var/lib/kubelet/config.yaml
-    # - /etc/kubernetes/pki/ca.crt
-    # - /ansible/
-    when: ansible_os_family == 'Debian'
-# ============================================================================ #
-  - name: Update apt cache
-    apt:
-      update_cache: yes
     ignore_errors: yes
-    when: ansible_os_family == 'Debian'
 # ============================================================================ #
-  - name: Remove CNI plugijn
-    ansible.builtin.file:
-      path: /opt/cni/bin/
+  - name: Remove Kubernetes files and configs
+    file:
+      path: "{{ item }}"
       state: absent
+      recurse: yes
+    loop:
+      - /etc/kubernetes
+      - /etc/cni/net.d
+      - /opt/cni/bin
+      - /var/lib/kubelet
+      - /var/lib/etcd
+      - /etc/iscsi/initiatorname.iscsi
+      - /etc/sysctl.d/99-kubernetes-cri.conf
+      - /etc/kubernetes/kubeadm_config.yam
+# ============================================================================ #
+  - name: Remove persistent storage for CSI
+    file:
+      path: "{{ item }}"
+      state: absent
+      recurse: yes
+    loop:
+      - /var/lib/rook
+      - /var/lib/longhorn
+      - /var/lib/ceph
+      - /var/lib/csi
+    ignore_errors: yes
 # ============================================================================ #
   - name: Remove IP address of all hosts to all hosts
     lineinfile:
       dest: /etc/hosts
       regexp: '.*{{ item }}$'
-      line: "{{ hostvars[item].ansible_ssh_host }}        {{ hostvars[item].ansible_hostname }}"
+      line: "{{ hostvars[item].ansible_host }} {{ hostvars[item].ansible_facts.hostname }}"
       state: absent
+    #when: hostvars[item].ansible_host is defined
     with_items: "{{ groups.all }}"
 # ============================================================================ #
-  - name:
-    block:
-    - name: Remove Kubernetes repository 
-      ansible.builtin.yum_repository:
-        name: Kubernetes
-        state: absent
-      when: ansible_os_family == 'RedHat'
-
-    - name: Add Kubernetes apt repository
-      block:
-      - name: kubernetes repo
-        ansible.builtin.apt_repository:
-          repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
-          state: absent
-      when: ansible_os_family == 'Debian'
-# ============================================================================ #
-  - name: Unmount Swap
-    block:
-    - name: Get swap disk
-      shell: |-
-        fdisk -l | grep swap | awk '{ print $2 }' | sed 's/\://' 
-      register: SWAP_UUID
-      when: ansible_os_family == 'RedHat'
-    - name: Get swap disk
-      shell: |-
-        fdisk -l | grep swap | awk '{ print $1 }' | sed 's/\://' 
-      register: SWAP_DISK
-      when: ansible_os_family == 'Debian'
-    - name: Get UUID
-      shell: |-
-        blkid {{SWAP_DISK.stdout}} | awk '{ print $2}'
-      register: SWAP_UUID
-      when: (ansible_os_family == 'Debian') and (SWAP_DISK is defined)
-    - name: Mount swap 
-      mount:
-        src: "{{SWAP_UUID.stdout}}"
-        path: swap
-        fstype: swap
-        opts: defaults
-        state: present
-      when: SWAP_UUID is defined
-    - name: Enable swap
-      ansible.builtin.shell: swapon -a
-      when: SWAP_UUID is defined
+  - name: Remove Kubernetes repositories (RedHat)
+    ansible.builtin.yum_repository:
+      name: Kubernetes
+      state: absent
+    when: ansible_os_family == "RedHat"
     ignore_errors: yes
+
+  - name: Remove Kubernetes repositories (Debian)
+    ansible.builtin.apt_repository:
+      repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+      state: absent
+    when: ansible_os_family == "Debian"
+    ignore_errors: yes
+
 # ============================================================================ #
-  - name: Get details about installed packages
-    ansible.builtin.package_facts:
+  - name: Enable swap for RedHat
+    block:
+      - name: Uncomment swap in fstab
+        ansible.builtin.replace:
+          path: /etc/fstab
+          regexp: '^#\s*(\S+)\s+(\S+)\s+swap\s+'
+          replace: '\1 \2 swap'
+
+      - name: Enable swap immediately
+        ansible.builtin.command: swapon -a
+    when:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts.swaptotal_mb | int == 0
+
+  - name: Enable swap for Debian
+    block:
+      - name: Uncomment swap in fstab
+        ansible.builtin.replace:
+          path: /etc/fstab
+          regexp: '^#\s*(\S+)\s+(\S+)\s+swap\s+'
+          replace: '\1 \2 swap'
+
+      - name: Enable swap immediately
+        ansible.builtin.command: swapon -a
+    when:
+      - ansible_facts['os_family'] == 'Debian'
+      - ansible_facts.swaptotal_mb | int == 0
 # ============================================================================ #
-  - name: Close firewall ports
+  - name: Open firewall ports (firewalld)
     ansible.posix.firewalld:
       permanent: yes
       immediate: yes
-      port: "{{item.port}}/{{item.proto}}"
+      port: "{{ item.port }}/{{ item.proto }}"
       state: disabled
       zone: public
-    with_items:
-    - description: etcd - client communication - control-plane
-      port: 2379
-      proto: tcp
-    - description: etcd - peer communication - control-plane
-      port: 2380
-      proto: tcp
-    - description: platform Agent
-      port: 8090-8091
-      proto: tcp
-    - description: VxLAN backend 
-      port: 8472
-      proto: udp
-    - description: kube-apiserver - control-plane
-      port: 6443
-      proto: tcp
-    - description: kubelet - all nodes
-      port: 10250-10259
-      proto: tcp
-    - description: kubelet - nodeport
-      port: 30000-32767
-      proto: tcp
-    - description: calico BGP
-      port: 179
-      proto: tcp
-    - description: calico VXLAN
-      port: 4789
-      proto: udp
-    - description: calico Typha
-      port: 5473
-      proto: tcp
-    - description: calico Wireguard
-      port: 51820-51821 
-      proto: udp
-    - description: ingress http
-      port: 80
-      proto: tcp
-    - description: ingress https
-      port: 443
-      proto: tcp
-    - description: ingress 8443
-      port: 8443
-      proto: tcp
-    - description: mail 25
-      port: 25
-      proto: tcp
-    - description: mail 465
-      port: 465
-      proto: tcp
-    - description: mail 587
-      port: 587
-      proto: tcp
-    - description: mail 993
-      port: 993
-      proto: tcp
-    - description: mail 143
-      port: 143
-      proto: tcp
-    - description: dns 53 tcp
-      port: 53
-      proto: tcp
-    - description: dns 53 udp
-      port: 53
-      proto: udp
-    - description: dns 67 udp
-      port: 67
-      proto: udp
-    - description: nfs 111 udp
-      port: 111
-      proto: udp
-    - description: dns 111 tcp
-      port: 111
-      proto: tcp
-    - description: nfs 2049 udp
-      port: 2049
-      proto: udp
-    ignore_errors: yes
+    loop:
+      - { port: 2379, proto: tcp }        # etcd client
+      - { port: 2380, proto: tcp }        # etcd peer
+      - { port: 8090-8091, proto: tcp }   # platform agent
+      - { port: 8472, proto: udp }        # VXLAN backend
+      - { port: 6443, proto: tcp }        # kube-apiserver
+      - { port: 10250-10259, proto: tcp } # kubelet
+      - { port: 30000-32767, proto: tcp } # nodeport
+      - { port: 179, proto: tcp }         # calico BGP
+      - { port: 4789, proto: udp }        # calico VXLAN
+      - { port: 111, proto: udp }         # nfs
+      - { port: 111, proto: tcp }         # rpcbind
+      - { port: 2049, proto: udp }        # nfs
     when:
-    - (ansible_os_family == 'RedHat') and ('firewalld' in ansible_facts.packages)
+      - ansible_facts['os_family'] == 'RedHat'
+      - "'firewalld' in ansible_facts.packages"
+    ignore_errors: yes
 # ============================================================================ #
-  - name: Close firewall ports
+  - name: Open firewall ports (ufw)
     community.general.ufw:
-      rule: deny
-      proto: "{{item.proto}}"
-      port: "{{item.port}}"
-    with_items:
-    - description: etcd - client communication - control-plane
-      port: 2379
-      proto: tcp
-    - description: etcd - peer communication - control-plane
-      port: 2380
-      proto: tcp
-    - description: platform Agent
-      port: 8090:8091
-      proto: tcp
-    - description: VxLAN backend 
-      port: 8472
-      proto: udp
-    - description: kube-apiserver - control-plane
-      port: 6443
-      proto: tcp
-    - description: kubelet - all nodes
-      port: 10250:10259
-      proto: tcp
-    - description: kubelet - nodeport
-      port: 30000:32767
-      proto: tcp
-    - description: calico BGP
-      port: 179
-      proto: tcp
-    - description: calico VXLAN
-      port: 4789
-      proto: udp
-    - description: calico Typha
-      port: 5473
-      proto: tcp
-    - description: calico Wireguard
-      port: 51820:51821 
-      proto: udp
-    - description: ingress http
-      port: 80
-      proto: tcp
-    - description: ingress https
-      port: 443
-      proto: tcp
-    - description: ingress 8443
-      port: 8443
-      proto: tcp
-      zone: public
-    - description: mail 25
-      port: 25
-      proto: tcp
-    - description: mail 465
-      port: 465
-      proto: tcp
-    - description: mail 587
-      port: 587
-      proto: tcp
-    - description: mail 993
-      port: 993
-      proto: tcp
-    - description: mail 143
-      port: 143
-      proto: tcp
-    - description: dns 53 tcp
-      port: 53
-      proto: tcp
-    - description: dns 53 udp
-      port: 53
-      proto: udp
-    - description: dns 67 udp
-      port: 67
-      proto: udp
-    - description: nfs 111 udp
-      port: 111
-      proto: udp
-    - description: dns 111 tcp
-      port: 111
-      proto: tcp
-    - description: nfs 2049 udp
-      port: 2049
-      proto: udp
-    ignore_errors: yes
+      rule: absent
+      proto: "{{ item.proto }}"
+      port: "{{ item.port }}"
+    loop:
+      - { port: 2379, proto: tcp }
+      - { port: 2380, proto: tcp }
+      - { port: 8090:8091, proto: tcp }
+      - { port: 8472, proto: udp }
+      - { port: 6443, proto: tcp }
+      - { port: 10250:10259, proto: tcp }
+      - { port: 30000:32767, proto: tcp }
+      - { port: 179, proto: tcp }
+      - { port: 4789, proto: udp }
+      - { port: 5473, proto: tcp }
+      - { port: 111, proto: udp }
+      - { port: 111, proto: tcp }
+      - { port: 2049, proto: udp }
     when:
-    - (ansible_os_family == 'Debian') and ('ufw' in ansible_facts.packages)
-# ============================================================================ #
-  # - name: Reboot machine
-  #   ansible.builtin.reboot:
-  #     msg: "Rebooting machine in 5 seconds"
+      - ansible_facts['os_family'] == 'Debian'
+      - "'ufw' in ansible_facts.packages"
+    ignore_errors: yes
