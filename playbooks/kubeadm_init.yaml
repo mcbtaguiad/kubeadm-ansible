@@ -1,172 +1,69 @@
 # ============================================================================ #
-# Author: Mark Taguiad <marktaguiad@tagsdev.xyz>
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
 # ============================================================================ #
 - hosts: all
   become: true
   vars:
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
-  roles:
-  - sys
-  - csi
-  - k8s
-# ============================================================================ #
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
   tasks:
-  - name: Init first cluster member
-    # Run this only on the first node in the inventory
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-    changed_when: false
-    register: join_commands
-    shell: |-
-      kubeadm reset -f &&
-      #kubeadm init --v=5 \
-      #  --config=/etc/kubernetes/kubeadm_config.yaml \
-      #  --upload-certs \
-      #  &&
-      kubeadm init --v=5 --pod-network-cidr=192.168.0.0/16 --service-cidr=192.169.0.0/16 --upload-certs --control-plane-endpoint {{ ansible_ssh_host }}
-      true
-  # ============================================================================ #
-  # - debug: var=join_commands
-  - name: Retrieve join commands
-    set_fact:
-      join_command_control_plane:
-        "{{
-          ' '.join(join_commands.stdout_lines[-12:-8]).
-          replace('\\ ', '').
-          replace('\t', '').
-          strip()
-        }}"
-      join_command_worker:
-        "{{
-          ' '.join(join_commands.stdout_lines[-2:]).
-          replace('\\ ', '').
-          replace('\t', '').
-          strip()
-        }}"
-    when:
-    - join_commands is defined
-    - join_commands.stdout_lines is defined
-    - join_commands.stdout_lines[-1] != ''
-    delegate_to: "{{ item }}"
-    with_items: "{{ ansible_play_batch }}"
-    run_once: yes
-    # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - debug:
-      msg:
-        join_command_control_plane: "{{ join_command_control_plane }}"
-        join_command_worker: "{{ join_command_worker }}"
-    when:
-    - join_command_control_plane is defined
-    - join_command_worker is defined
-    # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Join the other nodes to the cluster (Master)
-    shell: |-
-      kubeadm reset -f &&
 
-      {{ join_command_control_plane }} &&
+    - name: Run sys role
+      include_role:
+        name: sys
 
-      true
-    when: 
-    - "'master' in group_names"
-    - inventory_hostname != hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Join the other nodes to the cluster (Slaves)
-    shell: |-
-      kubeadm reset -f &&
-      
-      {{ join_command_worker }} &&
+    - name: Wait 30 seconds before next role
+      pause:
+        seconds: 30
 
-      true
-    when: "'worker' in group_names"
-  # ============================================================================ #
-  - name: Install Calico CNI plugin
-    command: |-
-      kubectl apply \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Untaint control plane nodes
-    shell: |-
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        taint nodes --all \
-        node-role.kubernetes.io/control-plane- \
-        || true
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Wait for nodes to become ready
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-    shell: |-
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        get nodes |
-        awk '{print $2}' | tail -n +2 | uniq -c
-    register: control_plane_ready
-    retries: 10
-    delay: 10
-    until: control_plane_ready.stdout.strip().split() == [ HOST_COUNT | string , 'Ready']
-  # ============================================================================ #
-  - name: Get cluster info
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-    ansible.builtin.shell: |-
-      kubectl \
-        --kubeconfig /etc/kubernetes/admin.conf \
-        cluster-info
-    register: cluster_info
-  - debug: var=cluster_info.stdout
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Label worker node
-    shell: |-
-      #!/bin/bash
-      set -x
+    - name: Run k8s role
+      include_role:
+        name: k8s
+      vars:
+        K8S_VERSION: v1.35
 
-      export KUBECONFIG=/etc/kubernetes/admin.conf
+    - name: Wait 30 seconds
+      pause:
+        seconds: 30
 
-      for i in $(kubectl get nodes  | grep -v master | awk '{ print $1 }' | tail -n +2)
-      do
-        kubectl --kubeconfig /etc/kubernetes/admin.conf label node $i node-role.kubernetes.io/worker=true
-      done
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  # - name: Label all node as worker
-  #   shell: |-
-  #     kubectl \
-  #       --kubeconfig /etc/kubernetes/admin.conf \
-  #       label nodes --all \
-  #       node-role.kubernetes.io/worker=true
-  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  # - name: Label nodes (manual label for now)
-  #   shell: |-
-  #     kubectl \
-  #       --kubeconfig /etc/kubernetes/admin.conf  \
-  #       label nodes malaya disk=ssd
-  #     kubectl \
-  #       --kubeconfig /etc/kubernetes/admin.conf  \
-  #       label nodes marilag disk=ssd
-      
-  #     kubectl \
-  #       --kubeconfig /etc/kubernetes/admin.conf  \
-  #       label nodes malaya core=4
-  #     kubectl \
-  #       --kubeconfig /etc/kubernetes/admin.conf  \
-  #       label nodes marilag core=3
+    - name: Run cni role
+      include_role:
+        name: cni
+      vars:
+        CNI_PLUGIN_VERSION: v1.9.0
+        CALICO_VERSION: v3.31.4
+        FLANNEL_VERSION: v0.28.1
+        apps_enabled:
+          - calico
+          # - flannel
 
-  #     kubectl \
-  #       --kubeconfig /etc/kubernetes/admin.conf  \
-  #       label nodes malaya ram=8gb
-  #     kubectl \
-  #       --kubeconfig /etc/kubernetes/admin.conf  \
-  #       label nodes marilag ram=3.5gb
-  #   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  # ============================================================================ #
-  - name: Fetch kubeconfig file
-    ansible.builtin.fetch:
-      src: /etc/kubernetes/admin.conf
-      dest: ../admin.conf
-      flat: yes
-    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    - name: Wait 30 seconds
+      pause:
+        seconds: 30
 
+    - name: Run csi role
+      include_role:
+        name: csi
+      vars:
+        LONGHORN_VERSION: v1.11.0
+        ROOK_VERSION: v1.19.2
+        apps_enabled:
+          - rook-ceph
+          # - longhorn
+
+    - name: Wait 60 seconds
+      pause:
+        seconds: 60
+
+    - name: Run addons role
+      include_role:
+        name: addons
+      vars:
+        METALLB_VERSION: v0.15.3
+        METALLB_IP_RANGE: "192.168.254.220-192.168.254.250"
+        apps_enabled:
+          - metallb
+          - kube-state-metrics
+          - metrics-server
+          - headlamp
