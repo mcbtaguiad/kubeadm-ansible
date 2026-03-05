@@ -7,7 +7,6 @@
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
   roles:
   - sys
-  - csi
   - k8s
 # ============================================================================ #
   tasks:
