@@ -1,0 +1,39 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
+# ============================================================================ #
+- hosts: all
+  become: true
+  vars:
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
+    MASTER_IP: "{{ hostvars['master01']['ansible_default_ipv4']['address'] }}"
+    K3S_VERSION: v1.35.1+k3s1
+  roles:
+  - sys
+# ============================================================================ #
+  tasks:
+  - name: Get token
+    # Run this only on the first node in the inventory
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    register: TOKEN
+    shell: |-
+      cat /var/lib/rancher/k3s/server/node-token
+# ============================================================================ #
+  - name: Set facts
+    set_fact:
+      token_member={{ TOKEN.stdout }}
+    delegate_to: "{{ item }}"
+    with_items: "{{ ansible_play_batch }}"
+    run_once: yes
+    when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Join master node
+    shell: |-
+      curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" INSTALL_K3S_EXEC="agent --server https://{{ MASTER_IP }}:6443 --token {{ token_member }}" sh -s - server
+    when: 
+    - "'master' in group_names"
+    - inventory_hostname != hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+  - name: Join member node
+    shell: |-
+      curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }} "INSTALL_K3S_EXEC="agent --server https://{{ MASTER_IP }}:6443 --token {{ token_member }}" sh -s -
+    when: "'worker' in group_names"

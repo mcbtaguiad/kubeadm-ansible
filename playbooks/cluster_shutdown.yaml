@@ -1,0 +1,51 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
+# ============================================================================ #
+---
+- name: Gracefully shutdown Kubernetes cluster nodes
+  hosts: all
+  become: yes
+  gather_facts: no
+  vars:
+    k8s_node_name: "{{ inventory_hostname }}"
+
+  tasks:
+
+    - name: Cordon the node
+      shell: |
+        kubectl --kubeconfig /etc/kubernetes/admin.conf cordon {{ k8s_node_name }}
+      register: cordon_result
+      ignore_errors: yes
+
+    - name: Show cordon output
+      debug:
+        var: cordon_result.stdout_lines
+
+    - name: Drain the node
+      shell: |
+        kubectl --kubeconfig /etc/kubernetes/admin.conf drain {{ k8s_node_name }} --ignore-daemonsets --delete-emptydir-data --force
+      register: drain_result
+      ignore_errors: yes
+
+    - name: Show drain output
+      debug:
+        var: drain_result.stdout_lines
+
+    - name: Stop kubelet service
+      systemd:
+        name: kubelet
+        state: stopped
+        enabled: no
+
+    - name: Stop container runtime
+      systemd:
+        name: containerd
+        state: stopped
+        enabled: no
+      ignore_errors: yes  # If using Docker instead of containerd
+
+    - name: Shutdown the VM
+      command: shutdown -h now
+      async: 1
+      poll: 0
+      ignore_errors: yes

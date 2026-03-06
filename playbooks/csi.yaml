@@ -1,0 +1,17 @@
+---
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
+# ============================================================================ #
+- hosts: all
+  become: true 
+  vars:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+    LONGHORN_VERSION: v1.11.0
+    ROOK_VERSION: v1.19.2
+  roles:
+    - role: csi
+      vars:
+        apps_enabled:
+          # choose one
+          - longhorn
+          # - rook-ceph

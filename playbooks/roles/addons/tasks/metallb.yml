@@ -1,0 +1,58 @@
+---
+- name: Apply Metallb namespace and CRDs
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/metallb/metallb/{{ METALLB_VERSION }}/config/manifests/metallb-native.yaml
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Wait until Metallb deployment is Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ KUBECONFIG }}"
+    kind: Deployment
+    namespace: metallb-system
+    name: controller
+  register: controller_deploy
+  until: controller_deploy.resources[0].status.availableReplicas is defined and controller_deploy.resources[0].status.availableReplicas | int > 0
+  retries: 30
+  delay: 10
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Wait 30 seconds for Metallb webhook to start
+  pause:
+    seconds: 30
+# ============================================================================ #
+- name: Configure Metallb IP pool
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: IPAddressPool
+      metadata:
+        name: default-ip-pool
+        namespace: metallb-system
+      spec:
+        addresses:
+          - "{{ METALLB_IP_RANGE }}"
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+  retries: 5
+  delay: 10
+  until: result is succeeded
+  register: result
+# ============================================================================ #
+- name: Create L2 advertisement for Metallb
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: L2Advertisement
+      metadata:
+        name: default-l2
+        namespace: metallb-system
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"

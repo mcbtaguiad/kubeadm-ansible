@@ -1,0 +1,18 @@
+---
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
+# ============================================================================ #
+- hosts: all
+  become: true 
+  vars:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+    METALLB_IP_RANGE: "192.168.254.220-192.168.254.250"
+    METALLB_VERSION: v0.15.3
+  roles:
+    - role: addons
+      vars:
+        apps_enabled:
+          - metallb
+          - kube-state-metrics
+          - metrics-server
+          - headlamp

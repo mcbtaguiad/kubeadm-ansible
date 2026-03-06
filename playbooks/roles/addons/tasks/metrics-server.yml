@@ -1,0 +1,19 @@
+---
+- name: Deploy Metrics Server
+  kubernetes.core.k8s:
+    state: present
+    src: https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+    kubeconfig: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Patch metrics-server args
+  command: >
+    kubectl --kubeconfig /etc/kubernetes/admin.conf patch deployment metrics-server -n kube-system
+    --type='json'
+    -p='[
+      {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"},
+      {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-preferred-address-types=InternalIP"}
+    ]'  
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"

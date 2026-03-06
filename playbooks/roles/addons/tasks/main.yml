@@ -1,0 +1,16 @@
+---
+- name: Deploy Metallb
+  include_tasks: metallb.yml
+  when: "'metallb' in apps_enabled"
+# ============================================================================ #
+- name: Deploy Metrics Server
+  include_tasks: metrics-server.yml
+  when: "'metrics-server' in apps_enabled"
+# ============================================================================ #
+- name: Deploy Kube-State-Metrics
+  include_tasks: kube-state-metrics.yml
+  when: "'kube-state-metrics' in apps_enabled"
+# ============================================================================ #
+- name: Deploy Headlamp
+  include_tasks: headlamp.yml
+  when: "'headlamp' in apps_enabled"

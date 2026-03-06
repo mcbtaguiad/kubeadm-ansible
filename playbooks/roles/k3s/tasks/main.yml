@@ -1,0 +1,74 @@
+---
+- name: Init first cluster member
+  # Run this only on the first node in the inventory
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  changed_when: false
+  shell: |-
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" INSTALL_K3S_EXEC="server" sh -s - --disable traefik --flannel-backend=none --disable-network-policy --disable metrics-server
+# ============================================================================ #
+- name: Get token
+  # Run this only on the first node in the inventory
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  register: TOKEN
+  shell: |-
+    cat /var/lib/rancher/k3s/server/node-token
+# ============================================================================ #
+- name: Set facts
+  set_fact:
+    token_member={{ TOKEN.stdout }}
+  delegate_to: "{{ item }}"
+  with_items: "{{ ansible_play_batch }}"
+  run_once: yes
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+- name: Join master node
+  shell: |-
+    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent --server https://{{ MASTER_IP }}:6443 --token {{ token_member }}" sh -s - server
+  when: 
+  - "'master' in group_names"
+  - inventory_hostname != hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+- name: Join member node
+  shell: |-
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" INSTALL_K3S_EXEC="agent --server https://{{ MASTER_IP }}:6443 --token {{ token_member }}" sh -s -
+  when: "'worker' in group_names"
+# ============================================================================ #
+- name: Untaint control plane nodes
+  shell: |-
+    kubectl \
+      --kubeconfig /etc/rancher/k3s/k3s.yaml \
+      taint nodes --all \
+      node-role.kubernetes.io/control-plane- \
+      || true
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  ignore_errors: yes
+# ============================================================================ #
+- name: Get cluster info
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+  ansible.builtin.shell: |-
+    kubectl \
+      --kubeconfig /etc/rancher/k3s/k3s.yaml \
+      cluster-info
+  register: cluster_info
+- debug: var=cluster_info.stdout
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+- name: Label worker node
+  shell: |-
+    #!/bin/bash
+    set -x
+
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+    for i in $(kubectl get nodes  | grep -v master | awk '{ print $1 }' | tail -n +2)
+    do
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml label node $i node-role.kubernetes.io/worker=true
+    done
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================ #
+- name: Fetch kubeconfig file
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: ../k3s.yaml
+    flat: yes
+  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]

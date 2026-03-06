@@ -1,2 +1,10 @@
 ---
-# defaults file for csi
+# Default apps enabled
+apps_enabled:
+  # choose one only
+  - longhorn 
+  # - rook-ceph
+
+LONGHORN_VERSION: v1.11.0
+ROOK_VERSION: v1.19.2
+KUBECONFIG: /etc/kubernetes/admin.conf  

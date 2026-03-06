@@ -1,0 +1,10 @@
+---
+apps_enabled:
+  # choose one
+  - calico
+  # - flannel
+
+# default env
+CNI_PLUGIN_VERSION: v1.9.0
+CALICO_VERSION: v3.31.4
+FLANNEL_VERSION: v0.28.1

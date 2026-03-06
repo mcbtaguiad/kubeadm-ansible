@@ -6,13 +6,18 @@
 # ============================================================================ #
   tasks:
   - name: Reset/delete cluster
-    # Run this only on the first node in the inventory
-    changed_when: false
-    shell: |-
-      kubeadm reset -f
-    # when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+    block:
+    - name: Master
+      changed_when: false
+      shell: |-
+        /usr/local/bin/k3s-uninstall.sh
+      when: "'master' in group_names"
+    - name: Node
+      changed_when: false
+      shell: |-
+        /usr/local/bin/k3s-agent-uninstall.sh
+      when: "'worker' in group_names"
     ignore_errors: True
-    run_once: true
 # ============================================================================ #
   - name: Ensure nfs-server and iscsi is disabled
     systemd:
@@ -44,10 +49,6 @@
     - cryptsetup
     - nfs-utils
     - lvm2
-    - containerd
-    - kubelet
-    - kubeadm
-    - kubectl
     - python3-kubernetes
     when: ansible_os_family == 'RedHat'
     ignore_errors: yes
@@ -57,10 +58,6 @@
       state: absent
     with_items:
     - open-iscsi
-    - containerd
-    - kubelet
-    - kubeadm
-    - kubectl
     - python3-kubernetes
     when: ansible_os_family == 'Debian'
     ignore_errors: yes
@@ -71,14 +68,12 @@
       state: absent
       recurse: yes
     loop:
-      - /etc/kubernetes
       - /etc/cni/net.d
       - /opt/cni/bin
-      - /var/lib/kubelet
       - /var/lib/etcd
       - /etc/iscsi/initiatorname.iscsi
       - /etc/sysctl.d/99-kubernetes-cri.conf
-      - /etc/kubernetes/kubeadm_config.yam
+      - /etc/rancher
 # ============================================================================ #
   - name: Remove persistent storage for CSI
     file:
@@ -100,21 +95,6 @@
       state: absent
     #when: hostvars[item].ansible_host is defined
     with_items: "{{ groups.all }}"
-# ============================================================================ #
-  - name: Remove Kubernetes repositories (RedHat)
-    ansible.builtin.yum_repository:
-      name: Kubernetes
-      state: absent
-    when: ansible_os_family == "RedHat"
-    ignore_errors: yes
-
-  - name: Remove Kubernetes repositories (Debian)
-    ansible.builtin.apt_repository:
-      repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
-      state: absent
-    when: ansible_os_family == "Debian"
-    ignore_errors: yes
-
 # ============================================================================ #
   - name: Enable swap for RedHat
     block:

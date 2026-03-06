@@ -1,4 +1,4 @@
-FROM docker.io/python:3.9.19-bookworm
+FROM docker.io/python:3.12-trixie
 
 LABEL Maintainer="Mark Taguiad <marktaguiad@tagsdev.xyz>"
 LABEL Description="Ansible Debian"
@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /ansible
 
 RUN pip install --upgrade pip
-RUN pip install ansible ansible-core argcomplete jmespath
+RUN pip install ansible ansible-core argcomplete jmespath kubernetes
 
 RUN apt update -y && \
     apt install -y sshpass git tree

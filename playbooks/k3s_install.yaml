@@ -5,19 +5,19 @@
   become: true
   vars:
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
-    KUBECONFIG: /etc/kubernetes/admin.conf
-
+    MASTER_IP: "{{ hostvars['master01']['ansible_default_ipv4']['address'] }}"
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   tasks:
 
     - name: Run sys role
       include_role:
         name: sys
 
-    - name: Run k8s role
+    - name: Run k3s role
       include_role:
-        name: k8s
+        name: k3s
       vars:
-        K8S_VERSION: v1.35
+        K3S_VERSION: v1.35.1+k3s1
 
     - name: Wait 30 seconds
       pause:

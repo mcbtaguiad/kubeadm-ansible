@@ -1,0 +1,18 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
+# Purpose: Deploy CNI for Kubernetes
+# ============================================================================ #
+- hosts: all
+  become: true
+  vars:
+    CNI_PLUGIN_VERSION: v1.9.0
+    CALICO_VERSION: v3.31.4
+    FLANNEL_VERSION: v0.28.1
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  roles:
+    - role: cni
+      vars:
+        apps_enabled:
+          # choose one
+          - calico
+          # - flannel
