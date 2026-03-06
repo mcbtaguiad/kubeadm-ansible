@@ -13,6 +13,6 @@
       vars:
         apps_enabled:
           - metallb
-          - kube-state-metrics
           - metrics-server
+          - kube-state-metrics
           - headlamp
