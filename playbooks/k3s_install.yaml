@@ -1,0 +1,65 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
+# ============================================================================ #
+- hosts: all
+  become: true
+  vars:
+    HOST_COUNT: "{{ ansible_play_hosts | length }}"
+    MASTER_IP: "{{ hostvars['master01']['ansible_default_ipv4']['address'] }}"
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  tasks:
+
+    - name: Run sys role
+      include_role:
+        name: sys
+
+    - name: Run k3s role
+      include_role:
+        name: k3s
+      vars:
+        K3S_VERSION: v1.35.1+k3s1
+
+    - name: Wait 30 seconds
+      pause:
+        seconds: 30
+
+    - name: Run cni role
+      include_role:
+        name: cni
+      vars:
+        CNI_PLUGIN_VERSION: v1.9.0
+        CALICO_VERSION: v3.31.4
+        FLANNEL_VERSION: v0.28.1
+        apps_enabled:
+          - calico
+          # - flannel
+
+    - name: Wait 30 seconds
+      pause:
+        seconds: 30
+
+    - name: Run csi role
+      include_role:
+        name: csi
+      vars:
+        LONGHORN_VERSION: v1.11.0
+        ROOK_VERSION: v1.19.2
+        apps_enabled:
+          - rook-ceph
+          # - longhorn
+
+    - name: Wait 60 seconds
+      pause:
+        seconds: 60
+
+    - name: Run addons role
+      include_role:
+        name: addons
+      vars:
+        METALLB_VERSION: v0.15.3
+        METALLB_IP_RANGE: "192.168.254.220-192.168.254.250"
+        apps_enabled:
+          - metallb
+          - kube-state-metrics
+          - metrics-server
+          - headlamp

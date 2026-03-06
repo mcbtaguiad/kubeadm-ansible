@@ -1,0 +1,3 @@
+---
+# defaults env k3s
+K3S_VERSION: v1.35.1+k3s1
