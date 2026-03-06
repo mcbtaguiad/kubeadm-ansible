@@ -57,7 +57,6 @@
       state: absent
     with_items:
     - open-iscsi
-    - ufw
     - containerd
     - kubelet
     - kubeadm
