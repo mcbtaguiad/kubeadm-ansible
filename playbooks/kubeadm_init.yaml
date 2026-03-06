@@ -13,10 +13,6 @@
       include_role:
         name: sys
 
-    - name: Wait 30 seconds before next role
-      pause:
-        seconds: 30
-
     - name: Run k8s role
       include_role:
         name: k8s
