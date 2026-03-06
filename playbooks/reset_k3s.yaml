@@ -1,0 +1,174 @@
+# ============================================================================ #
+# Author: Mark Taguiad <marktaguiad@marktaguiad.dev>
+# ============================================================================ #
+- hosts: all
+  become: true
+# ============================================================================ #
+  tasks:
+  - name: Reset/delete cluster
+    block:
+    - name: Master
+      changed_when: false
+      shell: |-
+        /usr/local/bin/k3s-uninstall.sh
+      when: "'master' in group_names"
+    - name: Node
+      changed_when: false
+      shell: |-
+        /usr/local/bin/k3s-agent-uninstall.sh
+      when: "'worker' in group_names"
+    ignore_errors: True
+# ============================================================================ #
+  - name: Ensure nfs-server and iscsi is disabled
+    systemd:
+      name: "{{ item }}"
+      state: stopped
+      enabled: true
+    with_items:
+    - iscsi
+    - kubelet
+    - containerd
+    ignore_errors: True
+# ============================================================================ #
+  - name: Disable kernel module iscsi_tcp
+    community.general.modprobe:
+      name: "{{ item }}"
+      state: absent
+    with_items:
+    - iscsi_tcp
+    - br_netfilter
+    - rbd
+# ============================================================================ #
+  - name: Remove installed packages
+    package:
+      name: "{{ item }}"
+      state: absent
+      # update_cache: yes
+    with_items:
+    - iscsi-initiator-utils
+    - cryptsetup
+    - nfs-utils
+    - lvm2
+    - python3-kubernetes
+    when: ansible_os_family == 'RedHat'
+    ignore_errors: yes
+  - name: Remove installed packages
+    ansible.builtin.apt:
+      name: "{{ item }}"
+      state: absent
+    with_items:
+    - open-iscsi
+    - python3-kubernetes
+    when: ansible_os_family == 'Debian'
+    ignore_errors: yes
+# ============================================================================ #
+  - name: Remove Kubernetes files and configs
+    file:
+      path: "{{ item }}"
+      state: absent
+      recurse: yes
+    loop:
+      - /etc/cni/net.d
+      - /opt/cni/bin
+      - /var/lib/etcd
+      - /etc/iscsi/initiatorname.iscsi
+      - /etc/sysctl.d/99-kubernetes-cri.conf
+      - /etc/rancher
+# ============================================================================ #
+  - name: Remove persistent storage for CSI
+    file:
+      path: "{{ item }}"
+      state: absent
+      recurse: yes
+    loop:
+      - /var/lib/rook
+      - /var/lib/longhorn
+      - /var/lib/ceph
+      - /var/lib/csi
+    ignore_errors: yes
+# ============================================================================ #
+  - name: Remove IP address of all hosts to all hosts
+    lineinfile:
+      dest: /etc/hosts
+      regexp: '.*{{ item }}$'
+      line: "{{ hostvars[item].ansible_host }} {{ hostvars[item].ansible_facts.hostname }}"
+      state: absent
+    #when: hostvars[item].ansible_host is defined
+    with_items: "{{ groups.all }}"
+# ============================================================================ #
+  - name: Enable swap for RedHat
+    block:
+      - name: Uncomment swap in fstab
+        ansible.builtin.replace:
+          path: /etc/fstab
+          regexp: '^#\s*(\S+)\s+(\S+)\s+swap\s+'
+          replace: '\1 \2 swap'
+
+      - name: Enable swap immediately
+        ansible.builtin.command: swapon -a
+    when:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts.swaptotal_mb | int == 0
+
+  - name: Enable swap for Debian
+    block:
+      - name: Uncomment swap in fstab
+        ansible.builtin.replace:
+          path: /etc/fstab
+          regexp: '^#\s*(\S+)\s+(\S+)\s+swap\s+'
+          replace: '\1 \2 swap'
+
+      - name: Enable swap immediately
+        ansible.builtin.command: swapon -a
+    when:
+      - ansible_facts['os_family'] == 'Debian'
+      - ansible_facts.swaptotal_mb | int == 0
+# ============================================================================ #
+  - name: Open firewall ports (firewalld)
+    ansible.posix.firewalld:
+      permanent: yes
+      immediate: yes
+      port: "{{ item.port }}/{{ item.proto }}"
+      state: disabled
+      zone: public
+    loop:
+      - { port: 2379, proto: tcp }        # etcd client
+      - { port: 2380, proto: tcp }        # etcd peer
+      - { port: 8090-8091, proto: tcp }   # platform agent
+      - { port: 8472, proto: udp }        # VXLAN backend
+      - { port: 6443, proto: tcp }        # kube-apiserver
+      - { port: 10250-10259, proto: tcp } # kubelet
+      - { port: 30000-32767, proto: tcp } # nodeport
+      - { port: 179, proto: tcp }         # calico BGP
+      - { port: 4789, proto: udp }        # calico VXLAN
+      - { port: 111, proto: udp }         # nfs
+      - { port: 111, proto: tcp }         # rpcbind
+      - { port: 2049, proto: udp }        # nfs
+    when:
+      - ansible_facts['os_family'] == 'RedHat'
+      - "'firewalld' in ansible_facts.packages"
+    ignore_errors: yes
+# ============================================================================ #
+  - name: Open firewall ports (ufw)
+    community.general.ufw:
+      rule: absent
+      proto: "{{ item.proto }}"
+      port: "{{ item.port }}"
+    loop:
+      - { port: 2379, proto: tcp }
+      - { port: 2380, proto: tcp }
+      - { port: 8090:8091, proto: tcp }
+      - { port: 8472, proto: udp }
+      - { port: 6443, proto: tcp }
+      - { port: 10250:10259, proto: tcp }
+      - { port: 30000:32767, proto: tcp }
+      - { port: 179, proto: tcp }
+      - { port: 4789, proto: udp }
+      - { port: 5473, proto: tcp }
+      - { port: 111, proto: udp }
+      - { port: 111, proto: tcp }
+      - { port: 2049, proto: udp }
+    when:
+      - ansible_facts['os_family'] == 'Debian'
+      - "'ufw' in ansible_facts.packages"
+    ignore_errors: yes
