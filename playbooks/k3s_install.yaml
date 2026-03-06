@@ -60,6 +60,6 @@
         METALLB_IP_RANGE: "192.168.254.220-192.168.254.250"
         apps_enabled:
           - metallb
+          # - metrics-server # keep this disabled, k3s has its own metrics-server 
           - kube-state-metrics
-          - metrics-server
           - headlamp
