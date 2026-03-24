@@ -5,8 +5,10 @@
 - hosts: all
   become: true 
   vars:
-    KUBECONFIG: /etc/kubernetes/admin.conf
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
     LONGHORN_VERSION: v1.11.0
+    LONGHORN_V2_ENGINE: true
+    HUGEPAGES_COUNT: 1024
     ROOK_VERSION: v1.19.2
   roles:
     - role: csi

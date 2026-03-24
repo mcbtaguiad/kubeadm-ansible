@@ -44,6 +44,8 @@
       vars:
         LONGHORN_VERSION: v1.11.0
         ROOK_VERSION: v1.19.2
+        LONGHORN_V2_ENGINE: true
+        HUGEPAGES_COUNT: 1024
         apps_enabled:
           - rook-ceph
           # - longhorn
@@ -61,5 +63,5 @@
         apps_enabled:
           - metallb
           # - metrics-server # keep this disabled, k3s has its own metrics-server 
-          - kube-state-metrics
+          # - kube-state-metrics
           - headlamp
