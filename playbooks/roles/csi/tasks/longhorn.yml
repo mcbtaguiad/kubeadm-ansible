@@ -14,14 +14,17 @@
   - lvm2
   - jq
   when: ansible_facts['os_family'] == 'RedHat'
-- name: Install storage dependecies
-  package:
+- name: Install storage dependencies
+  apt:
     name: "{{ item }}"
     state: present
-    # update_cache: yes
-  with_items:
-  - open-iscsi
-  - ufw
+    update_cache: yes
+  loop:
+    - open-iscsi
+    - cryptsetup
+    - nfs-common
+    - lvm2
+    - jq
   when: ansible_facts['os_family'] == 'Debian'
 # ============================================================================ #
 - name: Specify and load the following kernel module dependencies
@@ -29,13 +32,24 @@
     echo "InitiatorName=$(/sbin/iscsi-iname)" > /etc/iscsi/initiatorname.iscsi
   when: ansible_facts['os_family'] == 'RedHat'
 # ============================================================================ #
-- name: Enable kernel module iscsi_tcp
+- name: Enable kernel module
   community.general.modprobe:
     name: "{{ item }}"
     state: present
   with_items:
   - iscsi_tcp
+  - dm_crypt
   - rbd
+- name: Persist kernel modules
+  copy:
+    dest: /etc/modules-load.d/storage.conf
+    content: |
+      iscsi_tcp
+      dm_crypt
+      rbd
+    owner: root
+    group: root
+    mode: '0644'
 # ============================================================================ #
 - name: Ensure iscsi is started
   systemd:
@@ -53,8 +67,127 @@
     enabled: true
   with_items:
   - iscsi
-  - ufw
   when: ansible_facts['os_family'] == 'Debian'
+# ============================================================================ #
+- name: Stop multipathd service
+  ansible.builtin.systemd:
+    name: multipathd
+    state: stopped
+    enabled: no
+  ignore_errors: true
+
+- name: Stop multipathd socket
+  ansible.builtin.systemd:
+    name: multipathd.socket
+    state: stopped
+    enabled: no
+  ignore_errors: true
+# ========================================================================== #
+- name: Detect cloud kernel
+  ansible.builtin.set_fact:
+    is_cloud_kernel: "{{ ('cloud' in ansible_kernel) or ('-rt' in ansible_kernel) or ('-minimal' in ansible_kernel) }}"
+  when: LONGHORN_V2_ENGINE | bool
+
+- name: Install full Debian kernel if needed
+  ansible.builtin.apt:
+    name: linux-image-amd64
+    state: present
+    update_cache: yes
+  when: (ansible_os_family == "Debian") and (ansible_facts['is_cloud_kernel'] | default(false)) and (LONGHORN_V2_ENGINE | bool)
+  register: kernel_install
+
+- name: Install full RHEL kernel if needed
+  ansible.builtin.yum:
+    name: kernel
+    state: latest
+  when: (ansible_os_family == "RedHat") and (ansible_facts['is_cloud_kernel'] | default(false)) and (LONGHORN_V2_ENGINE | bool)
+  register: kernel_install
+# ========================================================================== #
+- name: Configure HugePages in GRUB (Debian)
+  lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+    line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash default_hugepagesz=2M hugepages={{ HUGEPAGES_COUNT }}"'
+  when: (ansible_os_family == "Debian") and (LONGHORN_V2_ENGINE | bool)
+  register: grub_changed_debian
+
+- name: Update GRUB (Debian)
+  command: update-grub
+  when: grub_changed_debian.changed and (LONGHORN_V2_ENGINE | bool)
+  register: grub_update_debian
+
+- name: Configure HugePages in GRUB (RedHat)
+  lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="crashkernel=auto rhgb quiet default_hugepagesz=2M hugepages={{ HUGEPAGES_COUNT }}"'
+  when: (ansible_os_family == "RedHat") and (LONGHORN_V2_ENGINE | bool)
+  register: grub_changed_redhat
+
+- name: Update GRUB (RedHat)
+  command: grub2-mkconfig -o /boot/grub2/grub.cfg
+  when: grub_changed_redhat.changed and (LONGHORN_V2_ENGINE | bool)
+  register: grub_update_redhat
+# ========================================================================== #
+- name: Reboot if kernel or GRUB updated
+  reboot:
+    msg: "Rebooting to apply full kernel + HugePages for Longhorn V2"
+    reboot_timeout: 600
+  when: (kernel_install is changed or grub_changed_debian.changed or grub_changed_redhat.changed) and (LONGHORN_V2_ENGINE | bool)
+
+- name: Wait for node to come back
+  wait_for_connection:
+    timeout: 600
+  when: (kernel_install is changed or grub_changed_debian.changed or grub_changed_redhat.changed) and (LONGHORN_V2_ENGINE | bool)
+
+- name: Reload facts after reboot
+  setup:
+  when: (kernel_install is changed or grub_changed_debian.changed or grub_changed_redhat.changed) and (LONGHORN_V2_ENGINE | bool)
+# ========================================================================== #
+- name: Enable v2 engine kernel module
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - nvme-tcp
+    - uio_pci_generic
+    - vfio_pci
+  when: LONGHORN_V2_ENGINE | bool
+
+- name: Persist kernel modules
+  copy:
+    dest: /etc/modules-load.d/longhorn-v2.conf
+    content: |
+      nvme-tcp
+      uio_pci_generic
+      vfio_pci
+    owner: root
+    group: root
+    mode: '0644'
+  when: LONGHORN_V2_ENGINE | bool
+# ========================================================================== #
+- name: Verify HugePages
+  shell: grep Huge /proc/meminfo
+  register: hugepages_info
+  changed_when: false
+  when: LONGHORN_V2_ENGINE | bool
+
+- name: Show HugePages info
+  debug:
+    var: hugepages_info.stdout_lines
+  when: LONGHORN_V2_ENGINE | bool
+# ========================================================================== #
+- name: Set sysctl k8s config
+  copy:
+    dest: "/etc/sysctl.d/99-kubernetes-csi.conf"
+    content: |
+      vm.nr_hugepages = 1024
+  when: LONGHORN_V2_ENGINE | bool
+# ========================================================================== #
+- name: Reload sysctl
+  shell: sysctl --system
+  when: LONGHORN_V2_ENGINE | bool
+
 # ============================================================================ #
 - name: Deploy Longhorn
   kubernetes.core.k8s:
@@ -63,3 +196,66 @@
     kubeconfig: "{{ KUBECONFIG }}"
   run_once: true
   delegate_to: "{{ groups['master'][0] }}"
+
+- name: Wait for all Longhorn pods to be ready
+  shell: |
+    kubectl --kubeconfig {{ KUBECONFIG }} -n longhorn-system wait \
+      --for=condition=Ready pods --all --timeout=600s
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ========================================================================== #
+- name: Enable V2 Engine 
+  shell: |-
+    kubectl \
+      --kubeconfig {{ KUBECONFIG }} \
+      patch settings.longhorn.io v2-data-engine \
+      -n longhorn-system \
+      --type merge \
+      -p '{"value": "true"}'
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+  when: LONGHORN_V2_ENGINE | bool
+# ========================================================================== #
+- name: Patch Longhorn nodes
+  ansible.builtin.shell: |
+    kubectl --kubeconfig {{ KUBECONFIG }} \
+    patch nodes.longhorn.io {{ item }} \
+    -n longhorn-system \
+    --type merge \
+    -p '{
+      "spec": {
+        "instanceManagerCPURequest": 250,
+        "instanceManagerCPULimit": 1000
+      }
+    }'
+  loop: "{{ groups['all'] }}"
+  delegate_to: "{{ groups['master'][0] }}"
+  when: LONGHORN_V2_ENGINE | bool
+# ========================================================================== #
+- name: Apply Hugepage setting to Longhorn nodes
+  shell: |
+    kubectl --kubeconfig {{ KUBECONFIG }} -n longhorn-system patch node {{ item }} \
+      --type merge \
+      -p '{"spec":{"hugepageRequestForV2DataEngine":2048,"allowScheduling":true}}'
+  loop: "{{ groups['all'] }}"
+  delegate_to: "{{ groups['master'][0] }}"
+  when: LONGHORN_V2_ENGINE | bool
+# ========================================================================== #
+# - name: Apply V2 ClassStorage
+#   ansible.builtin.shell: |
+#     cat <<EOF | kubectl --kubeconfig {{ KUBECONFIG }} apply -f -
+#     apiVersion: storage.k8s.io/v1
+#     kind: StorageClass
+#     metadata:
+#       name: longhorn-v2
+#     provisioner: driver.longhorn.io
+#     allowVolumeExpansion: true
+#     parameters:
+#       numberOfReplicas: "3"
+#       dataLocality: "best-effort"
+#       fsType: "ext4"
+#       dataEngine: "v2"
+#       diskSelector: "nvme"
+#     EOF
+#   run_once: true
+#   delegate_to: "{{ groups['master'][0] }}"
