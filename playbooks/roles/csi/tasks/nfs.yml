@@ -1,0 +1,114 @@
+
+- name: Install NFS server packages (RedHat)
+  ansible.builtin.yum:
+    name: nfs-utils
+    state: present
+  when: ansible_os_family == "RedHat"
+# ============================================================================ #
+- name: Install NFS server packages (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+# ============================================================================ #
+- name: Ensure NFS export directory exists
+  ansible.builtin.file:
+    path: "{{ NFS_MOUNT_POINT }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0777'
+# ============================================================================ #
+
+# -----------------------------
+# Step 2: Optionally format and mount extra disk
+# -----------------------------
+- name: Install filesystem tools for extra disk (XFS)
+  ansible.builtin.package:
+    name: xfsprogs
+    state: present
+  when: NFS_EXTRA_DISK != "" and NFS_FS_TYPE == "xfs"
+
+- name: Check if extra disk has a filesystem
+  ansible.builtin.command: blkid -o value -s TYPE {{ NFS_EXTRA_DISK }}
+  register: disk_fs
+  ignore_errors: yes
+  when: NFS_EXTRA_DISK != ""
+
+- name: Format extra disk if it has no filesystem
+  ansible.builtin.command: "mkfs.{{ NFS_FS_TYPE }} {{ NFS_EXTRA_DISK }}"
+  when:
+    - NFS_EXTRA_DISK != ""
+    - disk_fs.stdout == "" or disk_fs.stdout is not defined
+
+- name: Mount extra disk to {{ NFS_MOUNT_POINT }} and add to fstab
+  ansible.builtin.mount:
+    path: "{{ NFS_MOUNT_POINT }}"
+    src: "{{ NFS_EXTRA_DISK }}"
+    fstype: "{{ NFS_FS_TYPE }}"
+    state: mounted
+    opts: defaults
+    dump: 0
+    passno: 0
+  when: NFS_EXTRA_DISK != ""
+
+# -----------------------------
+# Step 3: Install NFS server
+# -----------------------------
+- name: Install NFS server (RedHat)
+  ansible.builtin.yum:
+    name: nfs-utils
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Install NFS server (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+# -----------------------------
+# Step 4: Configure /etc/exports
+# -----------------------------
+- name: Gather all node IPs
+  ansible.builtin.set_fact:
+    nfs_clients: "{{ groups['all'] | map('extract', hostvars, ['ansible_host']) | list }}"
+
+- name: Configure /etc/exports
+  ansible.builtin.copy:
+    dest: /etc/exports
+    content: |
+      {% for ip in nfs_clients %}
+      {{ NFS_MOUNT_POINT }} {{ ip }}(rw,sync,no_root_squash,no_all_squash)
+      {% endfor %}
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Refresh NFS exports
+  ansible.builtin.command: exportfs -ra
+
+# -----------------------------
+# Step 5: Enable and start NFS service
+# -----------------------------
+- name: Enable and start NFS server (RedHat)
+  ansible.builtin.service:
+    name: nfs-server
+    state: started
+    enabled: yes
+  when: ansible_os_family == "RedHat"
+
+- name: Enable and start NFS server (Debian/Ubuntu)
+  ansible.builtin.service:
+    name: nfs-kernel-server
+    state: started
+    enabled: yes
+  when: ansible_os_family == "Debian"
+# ============================================================================ #
+- name: Install NFS CSI
+  shell: |
+    curl -skSL https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/{{ NFS_CSI_VERSION }}/deploy/install-driver.sh | bash -s {{ NFS_CSI_VERSION }} --
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"

@@ -4,3 +4,6 @@
 
 - include_tasks: rook-ceph.yml
   when: "'rook-ceph' in apps_enabled"
+
+- include_tasks: nfs.yml
+  when: "'nfs' in apps_enabled"
