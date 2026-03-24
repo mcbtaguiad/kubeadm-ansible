@@ -44,9 +44,16 @@
       vars:
         LONGHORN_VERSION: v1.11.0
         ROOK_VERSION: v1.19.2
+        LONGHORN_V2_ENGINE: true
+        HUGEPAGES_COUNT: 1024
+        NFS_CSI_VERSION: v4.13.1
+        NFS_MOUNT_POINT: /srv/nfs/
+        NFS_EXTRA_DISK: /dev/vdb # set empty to skip
+        NFS_FS_TYPE: ext4
         apps_enabled:
           - rook-ceph
           # - longhorn
+          # - nfs
 
     - name: Wait 60 seconds
       pause:
