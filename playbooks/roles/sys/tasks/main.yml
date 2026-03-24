@@ -71,7 +71,7 @@
       net.ipv4.ip_forward = 1
       net.bridge.bridge-nf-call-ip6tables = 1
 # ============================================================================ #
-- name: Reload syscctl
+- name: Reload sysctl
   shell: sysctl --system
 # ============================================================================ #
 - name: Disable swap for RedHat
