@@ -51,9 +51,9 @@
         NFS_EXTRA_DISK: /dev/vdb # set empty to skip
         NFS_FS_TYPE: ext4
         apps_enabled:
-          - rook-ceph
+          # - rook-ceph
           # - longhorn
-          # - nfs
+          - nfs
 
     - name: Wait 60 seconds
       pause:

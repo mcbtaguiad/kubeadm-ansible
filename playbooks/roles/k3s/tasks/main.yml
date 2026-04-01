@@ -1,10 +1,13 @@
 ---
 - name: Init first cluster member
-  # Run this only on the first node in the inventory
   when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
   changed_when: false
   shell: |-
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" INSTALL_K3S_EXEC="server" sh -s - --disable traefik --flannel-backend=none --disable-network-policy
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" INSTALL_K3S_EXEC="server" sh -s - \
+      --disable traefik \
+      --disable servicelb \
+      --flannel-backend=none \
+      --disable-network-policy
 # ============================================================================ #
 - name: Get token
   # Run this only on the first node in the inventory
