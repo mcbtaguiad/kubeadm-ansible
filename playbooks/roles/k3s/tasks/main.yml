@@ -1,77 +1,110 @@
 ---
-- name: Init first cluster member
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  changed_when: false
+# ============================================================================
+- name: Install iptables dependencies
+  package:
+    name:
+      - iptables
+      - iptables-services
+    state: present
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Install iptables dependencies
+  apt:
+    name:
+      - iptables
+    state: present
+    update_cache: yes
+  when: ansible_facts['os_family'] == 'Debian'
+# ============================================================================
+- name: Init first master node
+  when: inventory_hostname == groups['master'][0]
   shell: |-
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" INSTALL_K3S_EXEC="server" sh -s - \
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" sh -s - server \
+      --cluster-init \
+      --tls-san {{ MASTER_IP }} \
       --disable traefik \
       --disable servicelb \
       --flannel-backend=none \
       --disable-network-policy
-# ============================================================================ #
-- name: Get token
-  # Run this only on the first node in the inventory
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
+# ============================================================================
+- name: Wait for node-token to be created
+  when: inventory_hostname == groups['master'][0]
+  wait_for:
+    path: /var/lib/rancher/k3s/server/node-token
+    timeout: 60
+
+# ============================================================================
+- name: Get cluster token
+  when: inventory_hostname == groups['master'][0]
   register: TOKEN
-  shell: |-
-    cat /var/lib/rancher/k3s/server/node-token
-# ============================================================================ #
-- name: Set facts
+  shell: cat /var/lib/rancher/k3s/server/node-token
+
+# ============================================================================
+- name: Share token to all nodes
   set_fact:
-    token_member={{ TOKEN.stdout }}
-  delegate_to: "{{ item }}"
-  with_items: "{{ ansible_play_batch }}"
-  run_once: yes
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
-- name: Join master node
+    token_member: "{{ TOKEN.stdout }}"
+  run_once: true
+
+# ============================================================================
+- name: Join additional master nodes
+  when:
+    - "'master' in group_names"
+    - inventory_hostname != groups['master'][0]
   shell: |-
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="agent --server https://{{ MASTER_IP }}:6443 --token {{ token_member }}" sh -s - server
-  when: 
-  - "'master' in group_names"
-  - inventory_hostname != hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
-- name: Join member node
-  shell: |-
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" INSTALL_K3S_EXEC="agent --server https://{{ MASTER_IP }}:6443 --token {{ token_member }}" sh -s -
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" sh -s - server \
+      --server https://{{ MASTER_IP }}:6443 \
+      --token {{ token_member }} \
+      --disable traefik \
+      --disable servicelb \
+      --flannel-backend=none \
+      --disable-network-policy
+
+# ============================================================================
+- name: Join worker nodes
   when: "'worker' in group_names"
-# ============================================================================ #
+  shell: |-
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ K3S_VERSION }}" sh -s - agent \
+      --server https://{{ MASTER_IP }}:6443 \
+      --token {{ token_member }}
+
+# ============================================================================
+- name: Wait for cluster to be ready
+  when: inventory_hostname == groups['master'][0]
+  shell: |
+    kubectl get nodes
+  register: result
+  retries: 10
+  delay: 10
+  until: result.rc == 0
+
+# ============================================================================
 - name: Untaint control plane nodes
+  when: inventory_hostname == groups['master'][0]
   shell: |-
-    kubectl \
-      --kubeconfig /etc/rancher/k3s/k3s.yaml \
-      taint nodes --all \
-      node-role.kubernetes.io/control-plane- \
-      || true
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  ignore_errors: yes
-# ============================================================================ #
-- name: Get cluster info
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-  ansible.builtin.shell: |-
-    kubectl \
-      --kubeconfig /etc/rancher/k3s/k3s.yaml \
-      cluster-info
-  register: cluster_info
-- debug: var=cluster_info.stdout
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
-- name: Label worker node
+    kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
+
+# ============================================================================
+- name: Label worker nodes
+  when: inventory_hostname == groups['master'][0]
   shell: |-
-    #!/bin/bash
-    set -x
-
-    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-
-    for i in $(kubectl get nodes  | grep -v master | awk '{ print $1 }' | tail -n +2)
-    do
-      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml label node $i node-role.kubernetes.io/worker=true
+    for i in $(kubectl get nodes --no-headers | awk '{print $1}' | grep -v master); do
+      kubectl label node $i node-role.kubernetes.io/worker=true --overwrite
     done
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
-# ============================================================================ #
-- name: Fetch kubeconfig file
-  ansible.builtin.fetch:
+
+# ============================================================================
+- name: Get cluster info
+  when: inventory_hostname == groups['master'][0]
+  shell: kubectl cluster-info
+  register: cluster_info
+
+- debug:
+    var: cluster_info.stdout
+  when: inventory_hostname == groups['master'][0]
+
+# ============================================================================
+- name: Fetch kubeconfig
+  when: inventory_hostname == groups['master'][0]
+  fetch:
     src: /etc/rancher/k3s/k3s.yaml
     dest: ../k3s.yaml
     flat: yes
-  when: inventory_hostname == hostvars[inventory_hostname].groups.all[0]
