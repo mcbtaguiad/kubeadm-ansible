@@ -8,11 +8,14 @@
     CNI_PLUGIN_VERSION: v1.9.0
     CALICO_VERSION: v3.31.4
     FLANNEL_VERSION: v0.28.1
-    KUBECONFIG: /etc/kubernetes/admin.conf
+    CILIUM_CLI_VERSION: v0.19.2
+    CILIUM_VERSION: 1.19.3
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   roles:
     - role: cni
       vars:
         apps_enabled:
           # choose one
-          - calico
+          # - calico
           # - flannel
+          - cilium

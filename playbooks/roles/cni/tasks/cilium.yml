@@ -1,0 +1,78 @@
+# ============================================================================ #
+- name: Open firewall ports (firewalld)
+  ansible.posix.firewalld:
+    permanent: yes
+    immediate: yes
+    port: "{{ item.port }}/{{ item.proto }}"
+    state: enabled
+    zone: public
+  loop:
+    - { port: 8472, proto: udp }
+    - { port: 4240, proto: tcp }
+    - { port: 4244, proto: tcp }
+    - { port: 6081, proto: udp }
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - "'firewalld' in ansible_facts.packages"
+  ignore_errors: yes
+# ============================================================================ #
+- name: Open firewall ports (ufw)
+  community.general.ufw:
+    rule: allow
+    proto: "{{ item.proto }}"
+    port: "{{ item.port }}"
+  loop:
+    - { port: 8472, proto: udp }
+    - { port: 4240, proto: tcp }
+    - { port: 4244, proto: tcp }
+    - { port: 6081, proto: udp }
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - "'ufw' in ansible_facts.packages"
+  ignore_errors: yes
+# ============================================================================ #
+- name: Download Cilium CLI
+  get_url:
+    url: "https://github.com/cilium/cilium-cli/releases/download/{{ CILIUM_CLI_VERSION }}/cilium-linux-amd64.tar.gz"
+    dest: "/tmp/cilium.tar.gz"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Extract Cilium CLI
+  unarchive:
+    src: "/tmp/cilium.tar.gz"
+    dest: "/tmp"
+    remote_src: yes
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Move Cilium binary
+  copy:
+    src: "/tmp/cilium"
+    dest: "/usr/local/bin/cilium"
+    mode: '0755'
+    remote_src: yes
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Verify Cilium CLI
+  command: cilium version
+  environment:
+    KUBECONFIG: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Install Cilium in cluster
+  command: >
+    cilium install --version {{ CILIUM_VERSION }}
+  environment:
+    KUBECONFIG: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"
+# ============================================================================ #
+- name: Wait for Cilium to be ready
+  command: cilium status --wait
+  environment:
+    KUBECONFIG: "{{ KUBECONFIG }}"
+  run_once: true
+  delegate_to: "{{ groups['master'][0] }}"

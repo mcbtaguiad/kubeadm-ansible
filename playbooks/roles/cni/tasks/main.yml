@@ -16,3 +16,7 @@
 - name: Deploy Flannel CNI
   include_tasks: flannel.yml
   when: "'flannel' in apps_enabled"
+# ============================================================================ #
+- name: Deploy Cilium CNI
+  include_tasks: cilium.yml
+  when: "'cilium' in apps_enabled"

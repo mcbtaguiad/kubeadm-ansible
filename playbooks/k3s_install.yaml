@@ -5,7 +5,7 @@
   become: true
   vars:
     HOST_COUNT: "{{ ansible_play_hosts | length }}"
-    MASTER_IP: "{{ hostvars['master01']['ansible_default_ipv4']['address'] }}"
+    MASTER_IP: "{{ hostvars[groups['master'][0]].ansible_host }}"
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   tasks:
 
@@ -30,9 +30,12 @@
         CNI_PLUGIN_VERSION: v1.9.0
         CALICO_VERSION: v3.31.4
         FLANNEL_VERSION: v0.28.1
+        CILIUM_CLI_VERSION: v0.19.2
+        CILIUM_VERSION: 1.19.3
         apps_enabled:
-          - calico
+          # - calico
           # - flannel
+          - cilium
 
     - name: Wait 30 seconds
       pause:
