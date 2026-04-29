@@ -25,7 +25,9 @@
       --disable traefik \
       --disable servicelb \
       --flannel-backend=none \
-      --disable-network-policy
+      --disable-network-policy \
+      --cluster-cidr {{ POD_CIDR }} \
+      --service-cidr {{ SERVICE_CIDR }}
 # ============================================================================
 - name: Wait for node-token to be created
   when: inventory_hostname == groups['master'][0]
@@ -57,7 +59,9 @@
       --disable traefik \
       --disable servicelb \
       --flannel-backend=none \
-      --disable-network-policy
+      --disable-network-policy \
+      --cluster-cidr {{ POD_CIDR }} \
+      --service-cidr {{ SERVICE_CIDR }}
 
 # ============================================================================
 - name: Join worker nodes

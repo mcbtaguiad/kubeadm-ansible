@@ -18,6 +18,8 @@
         name: k8s
       vars:
         K8S_VERSION: v1.35
+        POD_CIDR: 10.42.0.0/16
+        SERVICE_CIDR: 10.96.0.0/12
 
     - name: Wait 30 seconds
       pause:
@@ -32,44 +34,47 @@
         FLANNEL_VERSION: v0.28.1
         CILIUM_CLI_VERSION: v0.19.2
         CILIUM_VERSION: 1.19.3
+        CILIUM_CLUSTER_NAME: cluster-a
+        CILIUM_CLUSTER_ID: 1
+        POD_CIDR: 10.42.0.0/16
         apps_enabled:
           - calico
           # - flannel
           # - cilium
-
-    - name: Wait 30 seconds
-      pause:
-        seconds: 30
-
-    - name: Run csi role
-      include_role:
-        name: csi
-      vars:
-        LONGHORN_VERSION: v1.11.0
-        ROOK_VERSION: v1.19.2
-        LONGHORN_V2_ENGINE: true
-        HUGEPAGES_COUNT: 1024
-        NFS_CSI_VERSION: v4.13.1
-        NFS_MOUNT_POINT: /srv/nfs/
-        NFS_EXTRA_DISK: /dev/vdb # set empty to skip
-        NFS_FS_TYPE: ext4
-        apps_enabled:
-          - rook-ceph
-          # - longhorn
-          # - nfs
-
-    - name: Wait 60 seconds
-      pause:
-        seconds: 60
-
-    - name: Run addons role
-      include_role:
-        name: addons
-      vars:
-        METALLB_VERSION: v0.15.3
-        METALLB_IP_RANGE: "192.168.254.220-192.168.254.250"
-        apps_enabled:
-          - metallb
-          - kube-state-metrics
-          - metrics-server
-          - headlamp
+    #
+    # - name: Wait 30 seconds
+    #   pause:
+    #     seconds: 30
+    #
+    # - name: Run csi role
+    #   include_role:
+    #     name: csi
+    #   vars:
+    #     LONGHORN_VERSION: v1.11.0
+    #     ROOK_VERSION: v1.19.2
+    #     LONGHORN_V2_ENGINE: true
+    #     HUGEPAGES_COUNT: 1024
+    #     NFS_CSI_VERSION: v4.13.1
+    #     NFS_MOUNT_POINT: /srv/nfs/
+    #     NFS_EXTRA_DISK: /dev/vdb # set empty to skip
+    #     NFS_FS_TYPE: ext4
+    #     apps_enabled:
+    #       - rook-ceph
+    #       # - longhorn
+    #       # - nfs
+    #
+    # - name: Wait 60 seconds
+    #   pause:
+    #     seconds: 60
+    #
+    # - name: Run addons role
+    #   include_role:
+    #     name: addons
+    #   vars:
+    #     METALLB_VERSION: v0.15.3
+    #     METALLB_IP_RANGE: "192.168.254.220-192.168.254.250"
+    #     apps_enabled:
+    #       - metallb
+    #       - kube-state-metrics
+    #       - metrics-server
+    #       - headlamp
