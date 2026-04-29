@@ -130,7 +130,7 @@
     #  --config=/etc/kubernetes/kubeadm_config.yaml \
     #  --upload-certs \
     #  &&
-    kubeadm init --v=5 --pod-network-cidr=192.168.0.0/16 --service-cidr=192.169.0.0/16 --upload-certs --control-plane-endpoint {{ ansible_host }}
+    kubeadm init --v=5 --pod-network-cidr={{ POD_CIDR }} --service-cidr={{ SERVICE_CIDR }} --upload-certs --control-plane-endpoint {{ ansible_host }}
     true
 # ============================================================================ #
   # - debug: var=join_commands
