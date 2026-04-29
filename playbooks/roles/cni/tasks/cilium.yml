@@ -64,7 +64,15 @@
 # ============================================================================ #
 - name: Install Cilium in cluster
   command: >
-    cilium install --version {{ CILIUM_VERSION }}
+    cilium install \
+      --version {{ CILIUM_VERSION }} \
+      --set kubeProxyReplacement=true \
+      --set ipam.mode=kubernetes \
+      --set cluster.name={{ CILIUM_CLUSTER_NAME }} \
+      --set cluster.id={{ CILIUM_CLUSTER_ID }} \
+      --set clusterPoolIPv4PodCIDR={{ POD_CIDR }} \
+      --set l2announcements.enabled=true \
+      --set hubble.enabled=true
   environment:
     KUBECONFIG: "{{ KUBECONFIG }}"
   run_once: true
