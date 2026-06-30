@@ -11,7 +11,7 @@ jobs:
           HOST: ${{ vars.MASTER1_IP }}
           PRIV_KEY: ${{ secrets.PRIV_KEY }}
         run: |
-          install -m 600 /dev/null ~/.ssh/id_rsa
+          mkdir -p ~/.ssh
           printf '%s\n' "$PRIV_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           echo "=== SSH $HOST ==="
